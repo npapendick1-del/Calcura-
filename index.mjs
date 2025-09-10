@@ -45,12 +45,53 @@ function generateOffer(input) {
 
 // ---- PDF Export (deine längere Version)
 function exportOfferToPDF(offer) {
-  const filePath = "./offer.pdf";
+  // PDF in /public/generated ablegen, damit es öffentlich abrufbar ist
+  const outDir = path.join(__dirname, "public", "generated");
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+
+  const filename = `angebot-${Date.now()}.pdf`;
+  const filePath = path.join(outDir, filename);
+
   const doc = new PDFDocument();
   doc.pipe(fs.createWriteStream(filePath));
 
   doc.fontSize(20).text("Angebot", { align: "center" });
   doc.moveDown();
+
+  // Tabellenkopf
+  doc.font("Helvetica-Bold");
+  doc.text("Beschreibung", 50, doc.y);
+  doc.text("Menge", 200, doc.y);
+  doc.text("Einheit", 260, doc.y);
+  doc.text("Preis", 340, doc.y);
+  doc.text("Total", 420, doc.y);
+  doc.moveDown();
+
+  // Tabellenzeilen
+  doc.font("Helvetica");
+  for (const it of offer.items || []) {
+    doc.text(it.desc || "", 50, doc.y, { width: 140 });
+    doc.text(String(it.qty ?? ""), 200, doc.y);
+    doc.text(it.unit || "", 260, doc.y);
+    doc.text(((it.unitPrice ?? 0).toFixed(2)) + " €", 340, doc.y);
+    const lineTotal = (Number(it.qty || 0) * Number(it.unitPrice || 0)).toFixed(2);
+    doc.text(lineTotal + " €", 420, doc.y);
+    doc.moveDown();
+  }
+
+  doc.moveDown();
+  const s = n => (Number(n||0).toFixed(2) + " €");
+  doc.text(`Zwischensumme: ${s(offer.subtotal)}`, { align: "right" });
+  doc.text(`Aufschlag: ${s(offer.margin)}`, { align: "right" });
+  doc.text(`Netto: ${s(offer.totalBeforeTax)}`, { align: "right" });
+  doc.text(`MwSt: ${s(offer.tax)}`, { align: "right" });
+  doc.font("Helvetica-Bold").text(`Gesamtsumme: ${s(offer.total)}`, { align: "right" });
+
+  doc.end();
+
+  // Öffentlich erreichbarer Pfad (weil /public statisch serviert wird)
+  return `/generated/${filename}`;
+}
 
   // Tabellenkopf
   doc.font("Helvetica-Bold");
