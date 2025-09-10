@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>MeisterKI API Test</title>
+</head>
+<body>
+  <h1>🚀 MeisterKI API Test</h1>
+  
+  <button onclick="generateOffer()">Angebot generieren</button>
+  <button onclick="exportPDF()">PDF exportieren</button>
+  
+  <h2>Antwort:</h2>
+  <pre id="result"></pre>
+
+  <script>
+    async function generateOffer() {
+      const response = await fetch("/api/offers/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: [
+            { desc: "Malerarbeiten Wohnzimmer", qty: 20, unit: "h", unitPrice: 45 },
+            { desc: "Materialfarbe", qty: 5, unit: "L", unitPrice: 12 }
+          ]
+        })
+      });
+      const data = await response.json();
+      document.getElementById("result").textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function exportPDF() {
+      const response = await fetch("/api/offers/export-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: [
+            { desc: "Malerarbeiten Wohnzimmer", qty: 20, unit: "h", unitPrice: 45 },
+            { desc: "Materialfarbe", qty: 5, unit: "L", unitPrice: 12 }
+          ]
+        })
+      });
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "angebot.pdf";
+      a.click();
+    }
+  </script>
+</body>
+</html>
