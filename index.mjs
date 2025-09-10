@@ -2,15 +2,16 @@ import express from "express";
 import bodyParser from "body-parser";
 import PDFDocument from "pdfkit";
 import fs from "fs";
-
-const app = express();
-app.use(bodyParser.json());
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const app = express();
+app.use(bodyParser.json());
+
+// statische Dateien aus /public ausliefern (z.B. app.html und generierte PDFs)
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---- Angebotsschema (für Validierung)
@@ -19,13 +20,13 @@ function offerschemaParse(input) {
     throw new Error("Ungültiges Eingabeformat: items[] fehlt");
   }
   return input;
-} 
+}
 
 // ---- Angebot generieren
 function generateOffer(input) {
   let subtotal = 0;
-  input.items.forEach(it => {
-    subtotal += it.qty * it.unitPrice;
+  input.items.forEach((it) => {
+    subtotal += Number(it.qty || 0) * Number(it.unitPrice || 0);
   });
 
   const margin = subtotal * 0.1;
@@ -39,13 +40,12 @@ function generateOffer(input) {
     margin,
     totalBeforeTax,
     tax,
-    total
+    total,
   };
 }
 
-// ---- PDF Export (deine längere Version)
+// ---- PDF Export (legt Datei öffentlich in /public/generated ab)
 function exportOfferToPDF(offer) {
-  // PDF in /public/generated ablegen, damit es öffentlich abrufbar ist
   const outDir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
@@ -70,17 +70,20 @@ function exportOfferToPDF(offer) {
   // Tabellenzeilen
   doc.font("Helvetica");
   for (const it of offer.items || []) {
+    const qty = Number(it.qty || 0);
+    const unitPrice = Number(it.unitPrice || 0);
+    const lineTotal = (qty * unitPrice).toFixed(2);
+
     doc.text(it.desc || "", 50, doc.y, { width: 140 });
-    doc.text(String(it.qty ?? ""), 200, doc.y);
+    doc.text(String(qty), 200, doc.y);
     doc.text(it.unit || "", 260, doc.y);
-    doc.text(((it.unitPrice ?? 0).toFixed(2)) + " €", 340, doc.y);
-    const lineTotal = (Number(it.qty || 0) * Number(it.unitPrice || 0)).toFixed(2);
+    doc.text(unitPrice.toFixed(2) + " €", 340, doc.y);
     doc.text(lineTotal + " €", 420, doc.y);
     doc.moveDown();
   }
 
   doc.moveDown();
-  const s = n => (Number(n||0).toFixed(2) + " €");
+  const s = (n) => (Number(n || 0).toFixed(2) + " €");
   doc.text(`Zwischensumme: ${s(offer.subtotal)}`, { align: "right" });
   doc.text(`Aufschlag: ${s(offer.margin)}`, { align: "right" });
   doc.text(`Netto: ${s(offer.totalBeforeTax)}`, { align: "right" });
@@ -89,39 +92,8 @@ function exportOfferToPDF(offer) {
 
   doc.end();
 
-  // Öffentlich erreichbarer Pfad (weil /public statisch serviert wird)
+  // öffentlich erreichbarer Pfad relativ zu /public
   return `/generated/${filename}`;
-}
-
-  // Tabellenkopf
-  doc.font("Helvetica-Bold");
-  doc.text("Beschreibung", 50, doc.y);
-  doc.text("Menge", 200, doc.y);
-  doc.text("Einheit", 260, doc.y);
-  doc.text("Preis", 340, doc.y);
-  doc.text("Total", 420, doc.y);
-  doc.moveDown();
-
-  // Tabellenzeilen
-  doc.font("Helvetica");
-  for (const it of offer.items) {
-    doc.text(it.desc, 50, doc.y, { width: 140 });
-    doc.text(String(it.qty), 200, doc.y);
-    doc.text(it.unit, 260, doc.y);
-    doc.text(it.unitPrice.toFixed(2) + " €", 340, doc.y);
-    doc.text((it.qty * it.unitPrice).toFixed(2) + " €", 420, doc.y);
-    doc.moveDown();
-  }
-
-  doc.moveDown();
-  doc.text(`Zwischensumme: ${offer.subtotal.toFixed(2)} €`, { align: "right" });
-  doc.text(`Aufschlag: ${offer.margin.toFixed(2)} €`, { align: "right" });
-  doc.text(`Netto: ${offer.totalBeforeTax.toFixed(2)} €`, { align: "right" });
-  doc.text(`MwSt: ${offer.tax.toFixed(2)} €`, { align: "right" });
-  doc.font("Helvetica-Bold").text(`Gesamtsumme: ${offer.total.toFixed(2)} €`, { align: "right" });
-
-  doc.end();
-  return filePath;
 }
 
 // ---- API
@@ -138,15 +110,14 @@ app.post("/api/offers/generate", (req, res) => {
 app.post("/api/offers/export-pdf", (req, res) => {
   try {
     const offer = req.body;
-    const file = exportOfferToPDF(offer);
-    res.json({ ok: true, path: file });
+    const publicPath = exportOfferToPDF(offer); // z.B. /generated/angebot-123.pdf
+    res.json({ ok: true, path: publicPath });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
 });
 
-// ---- Landing Page
-// ---- Landing Page (mit Buttons zum Testen)
+// ---- Landing Page (mit Link zur App-Seite)
 app.get("/", (req, res) => {
   res.send(`<!doctype html>
     <html lang="de">
@@ -154,9 +125,10 @@ app.get("/", (req, res) => {
         <meta charset="utf-8" />
         <title>MeisterKI</title>
         <style>
-          body { font-family: system-ui, -apple-system, Roboto, Arial, sans-serif; padding: 20px; line-height: 1.4 }
-          button { padding: .6rem 1rem; border: 0; border-radius: 8px; background:#2563eb; color:#fff; cursor:pointer; margin-right:.5rem }
-          pre { background:#f8f9fb; padding:1rem; border-radius:10px; }
+          body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:20px}
+          code{background:#f3f4f6;padding:2px 6px;border-radius:6px}
+          a.button{display:inline-block;margin-top:10px;padding:10px 14px;background:#2563eb;color:#fff;border-radius:10px;text-decoration:none}
+          pre{background:#f8fafc;border:1px solid #e5e7eb;padding:12px;border-radius:10px;max-width:800px}
         </style>
       </head>
       <body>
@@ -166,45 +138,9 @@ app.get("/", (req, res) => {
           <li><code>POST /api/offers/generate</code></li>
           <li><code>POST /api/offers/export-pdf</code></li>
         </ul>
-
-        <h2>🔍 API testen</h2>
-        <button onclick="testGenerate()">📄 Angebot generieren</button>
-        <button onclick="testExport()">📑 PDF exportieren</button>
-
+        <a class="button" href="/app.html">Zur Angebots-App</a>
         <h3>Antwort</h3>
-        <pre id="out">Noch nichts berechnet…</pre>
-
-        <script>
-          async function testGenerate() {
-            const res = await fetch('/api/offers/generate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                items: [
-                  { desc: "Malerarbeiten Wohnzimmer", qty: 20, unit: "h", unitPrice: 45 },
-                  { desc: "Materialfarbe", qty: 5, unit: "L", unitPrice: 12 }
-                ]
-              })
-            });
-            const data = await res.json();
-            document.getElementById('out').textContent = JSON.stringify(data, null, 2);
-          }
-
-          async function testExport() {
-            const res = await fetch('/api/offers/export-pdf', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                items: [
-                  { desc: "Fliesenarbeiten Bad", qty: 10, unit: "h", unitPrice: 50 },
-                  { desc: "Fliesenpaket", qty: 20, unit: "m²", unitPrice: 25 }
-                ]
-              })
-            });
-            const data = await res.json();
-            document.getElementById('out').textContent = JSON.stringify(data, null, 2);
-          }
-        </script>
+        <pre id="out">Verwende die App-Seite, um zu testen.</pre>
       </body>
     </html>`);
 });
