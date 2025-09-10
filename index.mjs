@@ -105,20 +105,65 @@ app.post("/api/offers/export-pdf", (req, res) => {
 });
 
 // ---- Landing Page
+// ---- Landing Page (mit Buttons zum Testen)
 app.get("/", (req, res) => {
   res.send(`<!doctype html>
-    <html>
+    <html lang="de">
       <head>
         <meta charset="utf-8" />
         <title>MeisterKI</title>
+        <style>
+          body { font-family: system-ui, -apple-system, Roboto, Arial, sans-serif; padding: 20px; line-height: 1.4 }
+          button { padding: .6rem 1rem; border: 0; border-radius: 8px; background:#2563eb; color:#fff; cursor:pointer; margin-right:.5rem }
+          pre { background:#f8f9fb; padding:1rem; border-radius:10px; }
+        </style>
       </head>
       <body>
         <h1>🚀 Willkommen bei MeisterKI</h1>
-        <p>Dein Server läuft! API-Endpoints:</p>
+        <p>Dein Server läuft! API-Endpunkte:</p>
         <ul>
           <li><code>POST /api/offers/generate</code></li>
           <li><code>POST /api/offers/export-pdf</code></li>
         </ul>
+
+        <h2>🔍 API testen</h2>
+        <button onclick="testGenerate()">📄 Angebot generieren</button>
+        <button onclick="testExport()">📑 PDF exportieren</button>
+
+        <h3>Antwort</h3>
+        <pre id="out">Noch nichts berechnet…</pre>
+
+        <script>
+          async function testGenerate() {
+            const res = await fetch('/api/offers/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                items: [
+                  { desc: "Malerarbeiten Wohnzimmer", qty: 20, unit: "h", unitPrice: 45 },
+                  { desc: "Materialfarbe", qty: 5, unit: "L", unitPrice: 12 }
+                ]
+              })
+            });
+            const data = await res.json();
+            document.getElementById('out').textContent = JSON.stringify(data, null, 2);
+          }
+
+          async function testExport() {
+            const res = await fetch('/api/offers/export-pdf', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                items: [
+                  { desc: "Fliesenarbeiten Bad", qty: 10, unit: "h", unitPrice: 50 },
+                  { desc: "Fliesenpaket", qty: 20, unit: "m²", unitPrice: 25 }
+                ]
+              })
+            });
+            const data = await res.json();
+            document.getElementById('out').textContent = JSON.stringify(data, null, 2);
+          }
+        </script>
       </body>
     </html>`);
 });
