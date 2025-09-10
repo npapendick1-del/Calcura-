@@ -45,6 +45,7 @@ function generateOffer(input) {
 }
 
 // ---- PDF Export (legt Datei öffentlich in /public/generated ab)
+// ---- PDF Export (legt Datei öffentlich in /public/generated ab, inkl. Kopfzeile)
 function exportOfferToPDF(offer) {
   const outDir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
@@ -52,11 +53,69 @@ function exportOfferToPDF(offer) {
   const filename = `angebot-${Date.now()}.pdf`;
   const filePath = path.join(outDir, filename);
 
-  const doc = new PDFDocument();
+  const companyName = offer?.company?.name || "Ihr Handwerksbetrieb";
+  const customerName = offer?.customer?.name || "Kunde";
+  const trade = offer?.trade || "";
+  const today = new Date().toLocaleDateString("de-DE");
+
+  const doc = new PDFDocument({ margin: 50 });
   doc.pipe(fs.createWriteStream(filePath));
 
-  doc.fontSize(20).text("Angebot", { align: "center" });
-  doc.moveDown();
+  // Kopf
+  doc.fontSize(18).font("Helvetica-Bold").text(companyName);
+  doc.moveDown(0.2);
+  doc.fontSize(10).font("Helvetica").text(`Gewerk: ${trade || "-"}`);
+  doc.text(`Datum: ${today}`);
+  doc.moveDown(1);
+  doc.fontSize(12).font("Helvetica-Bold").text(`Angebot für: ${customerName}`);
+  doc.moveDown(0.6);
+
+  // Titel
+  doc.moveDown(0.6);
+  doc.fontSize(16).font("Helvetica-Bold").text("Angebot", { align: "center" });
+  doc.moveDown(0.8);
+
+  // Tabellenkopf
+  const startY = doc.y;
+  doc.font("Helvetica-Bold");
+  doc.text("Beschreibung", 50, startY);
+  doc.text("Menge", 260, startY);
+  doc.text("Einheit", 320, startY);
+  doc.text("Preis", 380, startY);
+  doc.text("Total", 460, startY);
+  doc.moveDown(0.6);
+  doc.font("Helvetica");
+
+  // Positionen
+  for (const it of offer.items || []) {
+    const qty = Number(it.qty || 0);
+    const unitPrice = Number(it.unitPrice || 0);
+    const lineTotal = (qty * unitPrice).toFixed(2);
+
+    const y = doc.y;
+    doc.text(it.desc || "", 50, y, { width: 190 });
+    doc.text(String(qty), 260, y);
+    doc.text(it.unit || "", 320, y);
+    doc.text(unitPrice.toFixed(2) + " €", 380, y);
+    doc.text(lineTotal + " €", 460, y);
+    doc.moveDown(0.4);
+  }
+
+  // Summen
+  doc.moveDown(0.8);
+  const fmt = (n) => (Number(n || 0).toFixed(2) + " €");
+  doc.text(`Zwischensumme: ${fmt(offer.subtotal)}`, { align: "right" });
+  doc.text(`Aufschlag (10%): ${fmt(offer.margin)}`, { align: "right" });
+  doc.text(`Netto: ${fmt(offer.totalBeforeTax)}`, { align: "right" });
+  doc.text(`MwSt (19%): ${fmt(offer.tax)}`, { align: "right" });
+  doc.font("Helvetica-Bold").text(`Gesamtsumme: ${fmt(offer.total)}`, { align: "right" });
+
+  doc.end();
+
+  // Öffentlich erreichbarer Pfad relativ zu /public
+  return `/generated/${filename}`;
+}
+
 
   // Tabellenkopf
   doc.font("Helvetica-Bold");
@@ -112,6 +171,20 @@ app.post("/api/offers/export-pdf", (req, res) => {
     const offer = req.body;
     const publicPath = exportOfferToPDF(offer); // z.B. /generated/angebot-123.pdf
     res.json({ ok: true, path: publicPath });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Direkt-Download der PDF (POST → Blob)
+app.post("/api/offers/export-pdf/download", (req, res) => {
+  try {
+    const offer = req.body;
+    const publicPath = exportOfferToPDF(offer); // z.B. /generated/angebot-123.pdf
+    const absPath = path.join(__dirname, "public", publicPath.replace(/^\//, ""));
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Angebot.pdf"`);
+    fs.createReadStream(absPath).pipe(res);
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
