@@ -2,6 +2,9 @@ services:
   - type: web
     name: meisterki
     env: node
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: "npm install && npm run build"
+    startCommand: "npm start"
     plan: free
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
