@@ -56,22 +56,108 @@ function exportOfferToPDF(offer) {
   const customerName = offer?.customer?.name || "Kunde";
   const trade = offer?.trade || "";
   const today = new Date().toLocaleDateString("de-DE");
-  const fmt = (n) =>
-    Number(n || 0).toLocaleString("de-DE", {
-      style: "currency",
-      currency: "EUR",
-    });
+  const fmt = (n) => Number(n || 0).toLocaleString("de-DE",{style:"currency",currency:"EUR"});
 
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
+  const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
   doc.pipe(fs.createWriteStream(filePath));
 
-  // Logo einfügen, falls vorhanden
+  // Logo (optional)
   const logoPath = path.join(__dirname, "public", "logo.png");
   if (fs.existsSync(logoPath)) {
-    try {
-      doc.image(logoPath, 400, 40, { width: 150 });
-    } catch {}
+    try { doc.image(logoPath, 430, 40, { width: 140 }); } catch {}
   }
+
+  // Kopf
+  doc.fontSize(20).font("Helvetica-Bold").text("Angebot", 50, 50);
+  doc.moveDown(1);
+  doc.font("Helvetica").fontSize(12).text(`Firma: ${companyName}`);
+  doc.text(`Kunde: ${customerName}`);
+  doc.text(`Gewerk: ${trade || "-"}`);
+  doc.text(`Datum: ${today}`);
+  doc.moveDown(1.5);
+
+  // Tabellenkopf
+  const drawHeader = (y) => {
+    doc.font("Helvetica-Bold").fontSize(11);
+    doc.text("Beschreibung", 50, y);
+    doc.text("Menge",        250, y);
+    doc.text("Einheit",      310, y);
+    doc.text("Einzelpreis",  380, y);
+    doc.text("Gesamt",       470, y);
+    doc.moveTo(50, y + 15).lineTo(550, y + 15).stroke("#000");
+  };
+
+  // Positionen
+  let y = doc.y + 20;
+  drawHeader(y); y += 25; doc.font("Helvetica").fontSize(10);
+
+  (offer.items || []).forEach((it, i) => {
+    if (y > 700) { doc.addPage(); y = 50; drawHeader(y); y += 25; }
+    const qty = Number(it.qty||0), unitPrice = Number(it.unitPrice||0);
+    const lineTotal = qty * unitPrice;
+
+    if (i % 2 === 0) { doc.rect(50, y-3, 500, 20).fill("#f3f4f6").fillColor("#000"); }
+    doc.text(it.desc || "", 55, y, { width: 180 });
+    doc.text(String(qty),    250, y);
+    doc.text(it.unit || "",  310, y);
+    doc.text(fmt(unitPrice), 380, y);
+    doc.text(fmt(lineTotal), 470, y);
+    y += 22;
+  });
+
+  // Summenbox
+  const boxY = y + 20;
+  doc.rect(300, boxY, 250, 100).fill("#f8fafc").stroke("#e5e7eb");
+  doc.fillColor("#000").font("Helvetica").fontSize(10);
+  const line = (label,val,bold=false)=>{
+    if(bold) doc.font("Helvetica-Bold");
+    doc.text(label, 310, doc.y + 5, { continued: true });
+    doc.text(fmt(val), 300, doc.y, { width: 240, align: "right" });
+    if(bold) doc.font("Helvetica");
+  };
+  doc.y = boxY + 5;
+  line("Zwischensumme",    offer.subtotal);
+  line("Aufschlag (10%)",  offer.margin);
+  line("Netto",            offer.totalBeforeTax);
+  line("MwSt (19%)",       offer.tax);
+  line("Gesamtsumme",      offer.total, true);
+
+  // Unterschriftenfeld
+  doc.moveDown(3);
+  const sigY = doc.y + 10;
+  doc.text("Ort, Datum:", 50, sigY);
+  doc.moveTo(110, sigY+12).lineTo(260, sigY+12).stroke("#888");
+  doc.text("Unterschrift Auftraggeber:", 50, sigY+35);
+  doc.moveTo(200, sigY+47).lineTo(350, sigY+47).stroke("#888");
+  doc.text("Unterschrift Auftragnehmer:", 370, sigY+35);
+  doc.moveTo(545, sigY+47).lineTo(395, sigY+47).stroke("#888");
+
+  // AGB / Hinweise
+  doc.moveDown(3);
+  doc.font("Helvetica-Bold").fontSize(11).text("Hinweise / AGB (Kurzfassung)");
+  doc.font("Helvetica").fontSize(9).fillColor("#333").text(
+    "• Dieses Angebot ist 30 Tage gültig. Alle Preise verstehen sich in EUR zzgl. gesetzlicher MwSt.\n" +
+    "• Abweichungen oder Zusatzleistungen werden gesondert berechnet.\n" +
+    "• Zahlungsziel: 14 Tage netto ohne Abzug.\n" +
+    "• Es gelten unsere allgemeinen Geschäftsbedingungen.",
+    { width: 500 }
+  );
+
+  // Footer (jede Seite)
+  const range = doc.bufferedPageRange();
+  for (let i = 0; i < range.count; i++) {
+    doc.switchToPage(i);
+    doc.fontSize(8).fillColor("#6b7280")
+      .text(`${companyName} • kontakt@example.com • 01234 / 567890`,
+            50, doc.page.height - 60, { width: 500, align: "center" });
+    doc.text(`Seite ${i+1} von ${range.count}`,
+            50, doc.page.height - 45, { width: 500, align: "right" });
+  }
+
+  doc.end();
+  return `/generated/${filename}`;
+}
+
 
   // Kopf
   doc.fontSize(20).font("Helvetica-Bold").text("Angebot", 50, 50);
