@@ -44,7 +44,7 @@ function generateOffer(input) {
   };
 }
 
-// ---- PDF Export (schönes Layout)
+// ---- PDF Export (professionelles Layout)
 function exportOfferToPDF(offer) {
   const outDir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
@@ -56,69 +56,111 @@ function exportOfferToPDF(offer) {
   const customerName = offer?.customer?.name || "Kunde";
   const trade = offer?.trade || "";
   const today = new Date().toLocaleDateString("de-DE");
-  const fmt = (n) => (Number(n || 0).toLocaleString("de-DE", { style: "currency", currency: "EUR" }));
+  const fmt = (n) =>
+    Number(n || 0).toLocaleString("de-DE", {
+      style: "currency",
+      currency: "EUR",
+    });
 
   const doc = new PDFDocument({ size: "A4", margin: 50 });
   doc.pipe(fs.createWriteStream(filePath));
 
+  // Logo einfügen, falls vorhanden
+  const logoPath = path.join(__dirname, "public", "logo.png");
+  if (fs.existsSync(logoPath)) {
+    try {
+      doc.image(logoPath, 400, 40, { width: 150 });
+    } catch {}
+  }
+
   // Kopf
-  doc.fontSize(18).font("Helvetica-Bold").text("Angebot", { align: "center" });
+  doc.fontSize(20).font("Helvetica-Bold").text("Angebot", 50, 50);
   doc.moveDown(1);
   doc.font("Helvetica").fontSize(12).text(`Firma: ${companyName}`);
   doc.text(`Kunde: ${customerName}`);
   doc.text(`Gewerk: ${trade}`);
   doc.text(`Datum: ${today}`);
-  doc.moveDown(1);
+  doc.moveDown(1.5);
 
-  // Tabellenkopf
-  const startY = doc.y;
-  doc.font("Helvetica-Bold").fontSize(11);
-  doc.text("Beschreibung", 50, startY);
-  doc.text("Menge", 250, startY);
-  doc.text("Einheit", 310, startY);
-  doc.text("Einzelpreis", 380, startY);
-  doc.text("Gesamt", 470, startY);
-  doc.moveDown(0.8);
+  // Tabellen-Header Funktion
+  function drawTableHeader(y) {
+    doc.font("Helvetica-Bold").fontSize(11);
+    doc.text("Beschreibung", 50, y);
+    doc.text("Menge", 250, y);
+    doc.text("Einheit", 310, y);
+    doc.text("Einzelpreis", 380, y);
+    doc.text("Gesamt", 470, y);
+    doc.moveTo(50, y + 15).lineTo(550, y + 15).stroke("#000");
+  }
+
+  // Tabelleninhalt
+  let y = doc.y + 20;
+  drawTableHeader(y);
+  y += 25;
   doc.font("Helvetica").fontSize(10);
 
-  // Positionen (mit einfachem Zebra-Look)
   (offer.items || []).forEach((it, i) => {
     const qty = Number(it.qty || 0);
     const unitPrice = Number(it.unitPrice || 0);
     const lineTotal = qty * unitPrice;
 
-    const y = doc.y;
-    if (i % 2 === 0) {
-      doc.rect(45, y - 2, 500, 18).fill("#f3f4f6").fillColor("#000");
+    if (y > 700) {
+      // neue Seite + Header wiederholen
+      doc.addPage();
+      y = 50;
+      drawTableHeader(y);
+      y += 25;
     }
 
-    doc.text(it.desc || "", 50, y, { width: 180 });
+    if (i % 2 === 0) {
+      doc.rect(50, y - 3, 500, 20).fill("#f3f4f6").fillColor("#000");
+    }
+
+    doc.text(it.desc || "", 55, y, { width: 180 });
     doc.text(String(qty), 250, y);
     doc.text(it.unit || "", 310, y);
     doc.text(fmt(unitPrice), 380, y);
     doc.text(fmt(lineTotal), 470, y);
-    doc.moveDown(1);
+    y += 22;
   });
 
   // Summenbox
-  doc.moveDown(1);
-  const boxX = 300;
-  const boxY = doc.y;
-  doc.rect(boxX, boxY, 240, 90).fill("#f8fafc").stroke("#e5e7eb");
-  doc.fillColor("#000").fontSize(10);
+  const boxY = y + 20;
+  doc.rect(300, boxY, 250, 100).fill("#f8fafc").stroke("#e5e7eb");
+  doc.fillColor("#000").font("Helvetica").fontSize(10);
 
-  doc.text(`Zwischensumme: ${fmt(offer.subtotal)}`, boxX + 10, boxY + 10, { width: 220, align: "right" });
-  doc.text(`Aufschlag (10%): ${fmt(offer.margin)}`, boxX + 10, doc.y + 5, { width: 220, align: "right" });
-  doc.text(`Netto: ${fmt(offer.totalBeforeTax)}`, boxX + 10, doc.y + 5, { width: 220, align: "right" });
-  doc.text(`MwSt (19%): ${fmt(offer.tax)}`, boxX + 10, doc.y + 5, { width: 220, align: "right" });
-  doc.font("Helvetica-Bold").text(`Gesamtsumme: ${fmt(offer.total)}`, boxX + 10, doc.y + 5, { width: 220, align: "right" });
+  const writeLine = (label, val, bold = false) => {
+    if (bold) doc.font("Helvetica-Bold");
+    doc.text(label, 310, doc.y + 5, { continued: true });
+    doc.text(fmt(val), 300, doc.y, { width: 240, align: "right" });
+    if (bold) doc.font("Helvetica");
+  };
+
+  doc.y = boxY + 5;
+  writeLine("Zwischensumme", offer.subtotal);
+  writeLine("Aufschlag (10%)", offer.margin);
+  writeLine("Netto", offer.totalBeforeTax);
+  writeLine("MwSt (19%)", offer.tax);
+  writeLine("Gesamtsumme", offer.total, true);
 
   // Fußnote
   doc.moveDown(3);
   doc.font("Helvetica").fontSize(8).fillColor("#6b7280").text(
-    "Hinweis: Angebot freibleibend. Preise in EUR zzgl. gesetzlicher MwSt., sofern nicht anders ausgewiesen. Zahlungsziel 14 Tage.",
+    "Hinweis: Angebot freibleibend. Preise in EUR zzgl. gesetzlicher MwSt. Zahlungsziel: 14 Tage ohne Abzug.",
     { width: 500 }
   );
+
+  // Seitenzahlen
+  const range = doc.bufferedPageRange();
+  for (let i = 0; i < range.count; i++) {
+    doc.switchToPage(i);
+    doc.fontSize(8).fillColor("#6b7280").text(
+      `Seite ${i + 1} von ${range.count}`,
+      0,
+      doc.page.height - 50,
+      { align: "right", width: doc.page.width - 50 }
+    );
+  }
 
   doc.end();
   return `/generated/${filename}`;
@@ -170,12 +212,10 @@ app.get("/", (req, res) => {
           body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:20px}
           code{background:#f3f4f6;padding:2px 6px;border-radius:6px}
           a.button{display:inline-block;margin-top:10px;padding:10px 14px;background:#2563eb;color:#fff;border-radius:10px;text-decoration:none}
-          pre{background:#f8fafc;border:1px solid #e5e7eb;padding:12px;border-radius:10px;max-width:800px}
         </style>
       </head>
       <body>
         <h1>🚀 Willkommen bei MeisterKI</h1>
-        <p>Dein Server läuft! API-Endpunkte:</p>
         <ul>
           <li><code>POST /api/offers/generate</code></li>
           <li><code>POST /api/offers/export-pdf</code></li>
