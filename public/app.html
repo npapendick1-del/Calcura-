@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MeisterKI – Angebot</title>
+  <style>
+    :root { --bg:#0f172a; --txt:#0b1220; --muted:#6b7280; --card:#f8fafc; --brand:#2563eb; }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#fff;color:var(--txt)}
+    header{padding:16px 20px;border-bottom:1px solid #eef2f7}
+    header h1{margin:0;font-size:20px}
+    main{padding:20px;display:grid;gap:16px;max-width:1100px;margin:0 auto}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .card{background:var(--card);border:1px solid #e5e7eb;border-radius:12px;padding:14px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input,select,button{font:inherit}
+    input,select{width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+    table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
+    th,td{padding:10px;border-bottom:1px solid #edf0f4;text-align:left;font-size:14px}
+    tfoot td{font-weight:600}
+    button{padding:10px 14px;border:0;border-radius:10px;background:var(--brand);color:#fff;cursor:pointer}
+    .ghost{background:#e5e7eb;color:#111827}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    pre{background:#f6f8fb;border:1px solid #e5e7eb;border-radius:12px;padding:14px;overflow:auto}
+    @media (max-width:800px){ .row{grid-template-columns:1fr} th.qty,td.qty{width:90px} th.price,td.price{width:120px} }
+  </style>
+</head>
+<body>
+  <header><h1>🛠️ MeisterKI – Angebot</h1></header>
+  <main>
+    <div class="row">
+      <div class="card">
+        <div class="row">
+          <div><label>Firma</label><input id="company" placeholder="Betriebsname" value="Malerbetrieb Muster"></div>
+          <div><label>Kunde</label><input id="customer" placeholder="Kunde" value="Max Mustermann"></div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div><label>Gewerk</label>
+            <select id="trade">
+              <option value="maler">Maler</option>
+              <option value="elektro">Elektro</option>
+              <option value="sanitär">Sanitär</option>
+              <option value="boden">Boden</option>
+              <option value="dach">Dach</option>
+            </select>
+          </div>
+          <div><label>Stundenlohn (€)</label><input id="labor" type="number" value="55"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="actions">
+          <button id="addRowBtn" class="ghost">+ Position</button>
+          <button id="calcBtn">Kalkulieren</button>
+          <button id="pdfBtn" class="ghost" disabled>PDF exportieren</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table id="items">
+        <thead>
+          <tr>
+            <th>Beschreibung</th>
+            <th class="qty">Menge</th>
+            <th>Einheit</th>
+            <th class="price">Einzelpreis (€)</th>
+            <th class="price">Gesamt (€)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr><td colspan="4" style="text-align:right">Zwischensumme</td><td id="subtotal">0.00</td><td></td></tr>
+          <tr><td colspan="4" style="text-align:right">Aufschlag (10%)</td><td id="margin">0.00</td><td></td></tr>
+          <tr><td colspan="4" style="text-align:right">MwSt (19%)</td><td id="tax">0.00</td><td></td></tr>
+          <tr><td colspan="4" style="text-align:right">Gesamtsumme</td><td id="total">0.00</td><td></td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="card">
+      <label>Letzte Antwort</label>
+      <pre id="out">Noch nichts berechnet…</pre>
+    </div>
+  </main>
+
+  <script>
+    const tbody = document.querySelector("#items tbody");
+    const out = document.getElementById("out");
+    const subtotalEl = document.getElementById("subtotal");
+    const marginEl = document.getElementById("margin");
+    const taxEl = document.getElementById("tax");
+    const totalEl = document.getElementById("total");
+    const pdfBtn = document.getElementById("pdfBtn");
+    let lastOffer = null;
+
+    function addRow(desc="", qty=1, unit="h", unitPrice=50) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input value="${desc}" placeholder="Beschreibung"></td>
+        <td class="qty"><input type="number" value="${qty}" step="0.01"></td>
+        <td><input value="${unit}" placeholder="Einheit"></td>
+        <td class="price"><input type="number" value="${unitPrice}" step="0.01"></td>
+        <td class="price" data-total>0.00</td>
+        <td><button class="ghost" onclick="this.closest('tr').remove()">Entf</button></td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function collectItems(){
+      const items = [];
+      tbody.querySelectorAll("tr").forEach(tr=>{
+        const [descInp, qtyInp, unitInp, priceInp] = tr.querySelectorAll("input");
+        const qty = Number(qtyInp.value || 0);
+        const price = Number(priceInp.value || 0);
+        const total = qty * price;
+        tr.querySelector("[data-total]").textContent = total.toFixed(2);
+        items.push({ desc: descInp.value, qty, unit: unitInp.value, unitPrice: price });
+      });
+      return items;
+    }
+
+    async function calc(){
+      const items = collectItems();
+      const res = await fetch("/api/offers/generate", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ items })
+      });
+      const data = await res.json();
+      lastOffer = data;
+      out.textContent = JSON.stringify(data, null, 2);
+      subtotalEl.textContent = (data.subtotal||0).toFixed(2);
+      marginEl.textContent = (data.margin||0).toFixed(2);
+      taxEl.textContent = (data.tax||0).toFixed(2);
+      totalEl.textContent = (data.total||0).toFixed(2);
+      pdfBtn.disabled = !data?.items?.length;
+      localStorage.setItem("meisterki_items", JSON.stringify(items));
+    }
+
+    async function exportPDF(){
+      if(!lastOffer){ return; }
+      const res = await fetch("/api/offers/export-pdf", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(lastOffer)
+      });
+      const data = await res.json();
+      if(data?.path){ window.open(data.path, "_blank"); }
+    }
+
+    // Handlers
+    document.getElementById("addRowBtn").onclick = () => addRow();
+    document.getElementById("calcBtn").onclick = calc;
+    pdfBtn.onclick = exportPDF;
+
+    // Start mit zwei Beispielzeilen
+    const saved = JSON.parse(localStorage.getItem("meisterki_items") || "null");
+    if(saved && Array.isArray(saved) && saved.length){ saved.forEach(r=>addRow(r.desc,r.qty,r.unit,r.unitPrice)); }
+    else { addRow("Malerarbeiten Wohnzimmer",20,"h",45); addRow("Materialfarbe",5,"L",12); }
+  </script>
+</body>
+</html>
