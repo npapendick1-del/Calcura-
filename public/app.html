@@ -123,6 +123,41 @@
     }
 
    <script>
+  const tbody = document.querySelector("#items tbody");
+  const out = document.getElementById("out");
+  const subtotalEl = document.getElementById("subtotal");
+  const marginEl = document.getElementById("margin");
+  const taxEl = document.getElementById("tax");
+  const totalEl = document.getElementById("total");
+  const pdfBtn = document.getElementById("pdfBtn");
+  let lastOffer = null;
+
+  function addRow(desc="", qty=1, unit="h", unitPrice=50) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input value="${desc}" placeholder="Beschreibung"></td>
+      <td class="qty"><input type="number" value="${qty}" step="0.01"></td>
+      <td><input value="${unit}" placeholder="Einheit"></td>
+      <td class="price"><input type="number" value="${unitPrice}" step="0.01"></td>
+      <td class="price" data-total>0.00</td>
+      <td><button class="ghost" onclick="this.closest('tr').remove()">Entf</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function collectItems(){
+    const items = [];
+    tbody.querySelectorAll("tr").forEach(tr=>{
+      const [descInp, qtyInp, unitInp, priceInp] = tr.querySelectorAll("input");
+      const qty = Number(qtyInp.value || 0);
+      const price = Number(priceInp.value || 0);
+      const total = qty * price;
+      tr.querySelector("[data-total]").textContent = total.toFixed(2);
+      items.push({ desc: descInp.value, qty, unit: unitInp.value, unitPrice: price });
+    });
+    return items;
+  }
+
   async function calc(){
     const items = collectItems();
     const payload = {
@@ -140,19 +175,56 @@
     });
     const data = await res.json();
 
-    // Merke kompletten Kontext für den PDF-Export
-    lastOffer = { ...payload, ...data };
+    lastOffer = { ...payload, ...data }; // Kontext für PDF
 
     out.textContent = JSON.stringify(lastOffer, null, 2);
     subtotalEl.textContent = (data.subtotal||0).toFixed(2);
-    marginEl.textContent = (data.margin||0).toFixed(2);
-    taxEl.textContent = (data.tax||0).toFixed(2);
-    totalEl.textContent = (data.total||0).toFixed(2);
+    marginEl.textContent   = (data.margin||0).toFixed(2);
+    taxEl.textContent      = (data.tax||0).toFixed(2);
+    totalEl.textContent    = (data.total||0).toFixed(2);
     pdfBtn.disabled = !data?.items?.length;
     localStorage.setItem("meisterki_items", JSON.stringify(items));
   }
+
+  async function exportPDF(){
+    if(!lastOffer) return;
+    const res = await fetch("/api/offers/export-pdf/download", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(lastOffer)
+    });
+    if(!res.ok){
+      const err = await res.text();
+      alert("PDF-Export fehlgeschlagen: " + err);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Angebot_${new Date().toISOString().slice(0,10)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // Buttons
+  document.getElementById("addRowBtn").onclick = () => addRow();
+  document.getElementById("calcBtn").onclick = calc;
+  pdfBtn.onclick = exportPDF;
+
+  // Start mit zwei Beispielzeilen
+  const saved = JSON.parse(localStorage.getItem("meisterki_items") || "null");
+  if(saved && Array.isArray(saved) && saved.length){
+    saved.forEach(r=>addRow(r.desc,r.qty,r.unit,r.unitPrice));
+  } else {
+    addRow("Malerarbeiten Wohnzimmer",20,"h",45);
+    addRow("Materialfarbe",5,"L",12);
+  }
 </script>
 
+  
     }
 
     async function exportPDF(){
