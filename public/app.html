@@ -122,22 +122,37 @@
       return items;
     }
 
-    async function calc(){
-      const items = collectItems();
-      const res = await fetch("/api/offers/generate", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ items })
-      });
-      const data = await res.json();
-      lastOffer = data;
-      out.textContent = JSON.stringify(data, null, 2);
-      subtotalEl.textContent = (data.subtotal||0).toFixed(2);
-      marginEl.textContent = (data.margin||0).toFixed(2);
-      taxEl.textContent = (data.tax||0).toFixed(2);
-      totalEl.textContent = (data.total||0).toFixed(2);
-      pdfBtn.disabled = !data?.items?.length;
-      localStorage.setItem("meisterki_items", JSON.stringify(items));
+   <script>
+  async function calc(){
+    const items = collectItems();
+    const payload = {
+      items,
+      company: { name: document.getElementById("company").value || "" },
+      customer: { name: document.getElementById("customer").value || "" },
+      trade: document.getElementById("trade").value || "",
+      laborRatePerHour: Number(document.getElementById("labor").value || 0)
+    };
+
+    const res = await fetch("/api/offers/generate", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    // Merke kompletten Kontext für den PDF-Export
+    lastOffer = { ...payload, ...data };
+
+    out.textContent = JSON.stringify(lastOffer, null, 2);
+    subtotalEl.textContent = (data.subtotal||0).toFixed(2);
+    marginEl.textContent = (data.margin||0).toFixed(2);
+    taxEl.textContent = (data.tax||0).toFixed(2);
+    totalEl.textContent = (data.total||0).toFixed(2);
+    pdfBtn.disabled = !data?.items?.length;
+    localStorage.setItem("meisterki_items", JSON.stringify(items));
+  }
+</script>
+
     }
 
     async function exportPDF(){
