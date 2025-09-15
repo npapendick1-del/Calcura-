@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard</title>
+  <style>
+    :root{--txt:#0b1220;--muted:#6b7280;--card:#f8fafc;--brand:#2563eb}
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#fff;color:var(--txt)}
+    header{padding:18px 22px;border-bottom:1px solid #eef2f7;display:flex;align-items:center;gap:10px}
+    header h1{font-size:18px;margin:0}
+    header small{color:var(--muted)}
+    main{max-width:1100px;margin:0 auto;padding:22px;display:grid;gap:18px}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    @media (max-width:960px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:640px){.grid{grid-template-columns:1fr}}
+    .card{background:var(--card);border:1px solid #e5e7eb;border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px}
+    .card h3{margin:0;font-size:16px}
+    .card p{margin:0;color:var(--muted);font-size:14px}
+    .card a.button{margin-top:auto;align-self:flex-start;text-decoration:none;background:var(--brand);color:#fff;padding:10px 12px;border-radius:10px}
+    .ghost{background:#e5e7eb !important;color:#111827 !important}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .badge{font-size:12px;color:#6b7280}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MeisterKI</h1>
+    <small class="badge">Dashboard</small>
+  </header>
+
+  <main>
+    <section class="row">
+      <a class="button ghost" href="/app.html#offer">➕ Neues Angebot</a>
+      <a class="button" href="/app.html#ai">🤖 KI-Assistent öffnen</a>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h3>📄 Angebote</h3>
+        <p>Positionen anlegen, kalkulieren und als PDF exportieren.</p>
+        <a class="button" href="/app.html#offer">Angebots-App öffnen</a>
+      </article>
+
+      <article class="card">
+        <h3>🤖 KI-Assistent</h3>
+        <p>Rechnungstext einfügen, Positionen automatisch erkennen lassen und ins Angebot übernehmen.</p>
+        <a class="button" href="/app.html#ai">KI-Assistent starten</a>
+      </article>
+
+      <article class="card">
+        <h3>👥 Kundenverwaltung</h3>
+        <p>Stammdaten, Ansprechpartner, Historie – (in Arbeit).</p>
+        <a class="button ghost" href="#" onclick="alert('Kommt bald 😊');return false;">Bald verfügbar</a>
+      </article>
+
+      <article class="card">
+        <h3>📁 Projektverwaltung</h3>
+        <p>Projekte, Dateien, Termine – (in Arbeit).</p>
+        <a class="button ghost" href="#" onclick="alert('Kommt bald 😊');return false;">Bald verfügbar</a>
+      </article>
+
+      <article class="card">
+        <h3>🧾 PDF-Center</h3>
+        <p>Generierte PDFs ansehen und herunterladen (öffnet Angebots-App).</p>
+        <a class="button" href="/app.html#offer">Öffnen</a>
+      </article>
+
+      <article class="card">
+        <h3>⚙️ Einstellungen</h3>
+        <p>Firmendaten, Logo, Defaults – (in Arbeit).</p>
+        <a class="button ghost" href="#" onclick="alert('Kommt bald 😊');return false;">Bald verfügbar</a>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
