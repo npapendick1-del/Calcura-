@@ -13,24 +13,24 @@
     header img{height:22px}
     main{padding:20px;display:grid;gap:16px;max-width:1100px;margin:0 auto}
 
-   /* Tabs – sichtbare Beschriftung erzwingen */
-.tabs{display:flex;gap:8px;margin:4px 0 8px 0}
-.tabs button{
-  padding:8px 14px;
-  border-radius:10px;
-  border:1px solid #e5e7eb;
-  background:#fff;
-  color: var(--txt);      /* <<< sorgt für dunkle Schrift */
-  font-weight:600;
-  cursor:pointer;
-}
-.tabs button:hover{ background:#f3f4f6 }
-.tabs button.active{
-  background: var(--brand);
-  color:#fff;
-  border-color: var(--brand);
-}
-
+    /* Tabs – sichtbare Beschriftung */
+    .tabs{display:flex;gap:8px;margin:4px 0 8px 0}
+    .tabs button{
+      padding:8px 14px;
+      border-radius:10px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+      color: var(--txt);
+      font-weight:600;
+      cursor:pointer;
+    }
+    .tabs button:hover{ background:#f3f4f6 }
+    .tabs button.active{
+      background: var(--brand);
+      color:#fff;
+      border-color: var(--brand);
+    }
+    .hidden{display:none}
 
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .card{background:var(--card);border:1px solid #e5e7eb;border-radius:12px;padding:14px}
@@ -49,7 +49,7 @@
     .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;display:none}
     .toast.show{display:block}
 
-    /* >>> NEU: Sichtbare Badge (fix für weiße Schrift auf weißem Hintergrund) */
+    /* Badge (optional) */
     .badge{
       display:inline-block;
       padding:4px 8px;
@@ -57,7 +57,7 @@
       font-size:12px;
       font-weight:600;
       background: var(--brand);
-      color:#fff; /* gut lesbar */
+      color:#fff;
     }
 
     @media (max-width:800px){ .row{grid-template-columns:1fr} th.qty,td.qty{width:90px} th.price,td.price{width:120px} }
@@ -68,7 +68,7 @@
     <h1>
       <img src="/logo.png" alt="Logo" onerror="this.style.display='none'">
       MeisterKI
-      <span class="badge">Angebot</span> <!-- optionales Beispiel-Badge -->
+      <span class="badge">Angebot</span>
     </h1>
   </header>
 
@@ -122,13 +122,13 @@
               <th></th>
             </tr>
           </thead>
-        <tbody></tbody>
-        <tfoot>
-          <tr><td colspan="4" style="text-align:right">Zwischensumme</td><td id="subtotal">0.00</td><td></td></tr>
-          <tr><td colspan="4" style="text-align:right">Aufschlag (10%)</td><td id="margin">0.00</td><td></td></tr>
-          <tr><td colspan="4" style="text-align:right">MwSt (19%)</td><td id="tax">0.00</td><td></td></tr>
-          <tr><td colspan="4" style="text-align:right">Gesamtsumme</td><td id="total">0.00</td><td></td></tr>
-        </tfoot>
+          <tbody></tbody>
+          <tfoot>
+            <tr><td colspan="4" style="text-align:right">Zwischensumme</td><td id="subtotal">0.00</td><td></td></tr>
+            <tr><td colspan="4" style="text-align:right">Aufschlag (10%)</td><td id="margin">0.00</td><td></td></tr>
+            <tr><td colspan="4" style="text-align:right">MwSt (19%)</td><td id="tax">0.00</td><td></td></tr>
+            <tr><td colspan="4" style="text-align:right">Gesamtsumme</td><td id="total">0.00</td><td></td></tr>
+          </tfoot>
         </table>
       </div>
 
@@ -184,7 +184,7 @@
     tabOffer.onclick = ()=>switchTab("offer");
     tabAI.onclick    = ()=>switchTab("ai");
 
-    // ---------- Angebot (wie bisher) ----------
+    // ---------- Angebot ----------
     const tbody = document.querySelector("#items tbody");
     const out = document.getElementById("out");
     const subtotalEl = document.getElementById("subtotal");
@@ -259,47 +259,31 @@
       localStorage.setItem("meisterki_items", JSON.stringify(items));
     }
 
-   <script>
-  async function exportPDF(){
-    if(!lastOffer) { return toast("Bitte erst kalkulieren."); }
-
-    // 1) Lass den Server die PDF erzeugen und im /public/generated/ Ordner ablegen
-    const res = await fetch("/api/offers/export-pdf", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify(lastOffer)
-    });
-    if(!res.ok){
-      const t = await res.text();
-      return toast("PDF-Export fehlgeschlagen: " + t);
-    }
-    const data = await res.json();
-    const path = data?.path;      // z.B. /generated/Angebot_Firma_Kunde_YYYY-MM-DD.pdf
-    const filename = data?.filename || "Angebot.pdf";
-
-    if(!path){
-      return toast("Kein Pfad vom Server erhalten.");
-    }
-
-    // 2) Jetzt aus dem öffentlich erreichbaren /generated/ laden
-    //    So bleibt der Dateiname erhalten und die Datei ist im PDF-Center sichtbar.
-    const a = document.createElement("a");
-    a.href = path;        // GET auf /generated/… (statische Datei)
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    toast("PDF gespeichert. Im PDF-Center verfügbar.");
-  }
-    
+    // >>> KORRIGIERT: PDF speichern (für PDF-Center) & mit Dateiname herunterladen
+    async function exportPDF(){
+      if(!lastOffer) { return toast("Bitte erst kalkulieren."); }
+      const res = await fetch("/api/offers/export-pdf", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(lastOffer)
       });
-      if(!res.ok){ const err = await res.text(); return toast("PDF-Export fehlgeschlagen: " + err); }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      if(!res.ok){
+        const t = await res.text();
+        return toast("PDF-Export fehlgeschlagen: " + t);
+      }
+      const data = await res.json();
+      const path = data?.path;      // /generated/Angebot_Firma_Kunde_YYYY-MM-DD.pdf
+      const filename = data?.filename || "Angebot.pdf";
+      if(!path){ return toast("Kein Pfad vom Server erhalten."); }
+
       const a = document.createElement("a");
-      a.href = url; a.download = `Angebot_${new Date().toISOString().slice(0,10)}.pdf`;
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      a.href = path;         // statische Datei aus /public/generated
+      a.download = filename; // sauberer Dateiname
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      toast("PDF gespeichert. Im PDF-Center verfügbar.");
     }
 
     document.getElementById("addRowBtn").onclick = ()=>{ addRow(); updateTotals(); };
