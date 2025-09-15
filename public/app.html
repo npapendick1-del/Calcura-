@@ -34,6 +34,18 @@
     pre{background:#f6f8fb;border:1px solid #e5e7eb;border-radius:12px;padding:14px;overflow:auto}
     .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;display:none}
     .toast.show{display:block}
+
+    /* >>> NEU: Sichtbare Badge (fix für weiße Schrift auf weißem Hintergrund) */
+    .badge{
+      display:inline-block;
+      padding:4px 8px;
+      border-radius:8px;
+      font-size:12px;
+      font-weight:600;
+      background: var(--brand);
+      color:#fff; /* gut lesbar */
+    }
+
     @media (max-width:800px){ .row{grid-template-columns:1fr} th.qty,td.qty{width:90px} th.price,td.price{width:120px} }
   </style>
 </head>
@@ -42,6 +54,7 @@
     <h1>
       <img src="/logo.png" alt="Logo" onerror="this.style.display='none'">
       MeisterKI
+      <span class="badge">Angebot</span> <!-- optionales Beispiel-Badge -->
     </h1>
   </header>
 
@@ -95,13 +108,13 @@
               <th></th>
             </tr>
           </thead>
-          <tbody></tbody>
-          <tfoot>
-            <tr><td colspan="4" style="text-align:right">Zwischensumme</td><td id="subtotal">0.00</td><td></td></tr>
-            <tr><td colspan="4" style="text-align:right">Aufschlag (10%)</td><td id="margin">0.00</td><td></td></tr>
-            <tr><td colspan="4" style="text-align:right">MwSt (19%)</td><td id="tax">0.00</td><td></td></tr>
-            <tr><td colspan="4" style="text-align:right">Gesamtsumme</td><td id="total">0.00</td><td></td></tr>
-          </tfoot>
+        <tbody></tbody>
+        <tfoot>
+          <tr><td colspan="4" style="text-align:right">Zwischensumme</td><td id="subtotal">0.00</td><td></td></tr>
+          <tr><td colspan="4" style="text-align:right">Aufschlag (10%)</td><td id="margin">0.00</td><td></td></tr>
+          <tr><td colspan="4" style="text-align:right">MwSt (19%)</td><td id="tax">0.00</td><td></td></tr>
+          <tr><td colspan="4" style="text-align:right">Gesamtsumme</td><td id="total">0.00</td><td></td></tr>
+        </tfoot>
         </table>
       </div>
 
