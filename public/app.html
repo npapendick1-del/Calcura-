@@ -3,130 +3,161 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Angebots-App</title>
+  <title>MeisterKI – Angebot & KI-Assistent</title>
   <style>
-    :root { --txt:#0b1220; --muted:#6b7280; --card:#f8fafc; --brand:#2563eb; --ok:#16a34a; --warn:#ef4444; }
+    :root { --txt:#0b1220; --muted:#6b7280; --card:#f8fafc; --brand:#2563eb; }
     *{box-sizing:border-box}
-    html,body{height:100%}
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#fff;color:var(--txt)}
-    header{padding:16px 20px;border-bottom:1px solid #eef2f7;background:#ffffff;position:sticky;top:0;z-index:10}
+    header{padding:16px 20px;border-bottom:1px solid #eef2f7}
     header h1{margin:0;font-size:18px;display:flex;gap:10px;align-items:center}
     header img{height:22px}
     main{padding:20px;display:grid;gap:16px;max-width:1100px;margin:0 auto}
+
+    .tabs{display:flex;gap:8px;margin:4px 0 8px 0}
+    .tabs button{padding:8px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;cursor:pointer}
+    .tabs button.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .hidden{display:none}
+
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .card{background:var(--card);border:1px solid #e5e7eb;border-radius:12px;padding:14px}
     label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
     input,select,button,textarea{font:inherit}
     input,select,textarea{width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
-    textarea{resize:vertical}
+    textarea{min-height:160px;resize:vertical}
+
     table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
-    th,td{padding:10px;border-bottom:1px solid #edf0f4;text-align:left;font-size:14px;vertical-align:top}
+    th,td{padding:10px;border-bottom:1px solid #edf0f4;text-align:left;font-size:14px}
     tfoot td{font-weight:600}
-    button{padding:10px 14px;border:0;border-radius:10px;background:var(--brand);color:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
-    button[disabled]{opacity:.6;cursor:not-allowed}
+    button{padding:10px 14px;border:0;border-radius:10px;background:var(--brand);color:#fff;cursor:pointer}
     .ghost{background:#e5e7eb;color:#111827}
     .actions{display:flex;gap:10px;flex-wrap:wrap}
-    .hint{font-size:12px;color:var(--muted);margin-top:6px}
-    details summary{cursor:pointer;color:#334155}
     pre{background:#f6f8fb;border:1px solid #e5e7eb;border-radius:12px;padding:14px;overflow:auto}
-    .right{display:flex;gap:10px;align-items:center;justify-content:flex-end}
-    .pill{font-size:12px;border-radius:999px;padding:4px 10px;border:1px solid #e5e7eb;background:#fff;color:#111827}
-    .toast{position:fixed;right:16px;bottom:16px;background:#111827;color:#fff;padding:12px 14px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.15);opacity:0;transform:translateY(8px);transition:.2s}
-    .toast.show{opacity:1;transform:translateY(0)}
-    .row-3{display:grid;grid-template-columns:2fr 3fr;gap:12px}
-    @media (max-width:900px){ .row,.row-3{grid-template-columns:1fr} th.qty,td.qty{width:90px} th.price,td.price{width:120px} }
+    .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;display:none}
+    .toast.show{display:block}
+    @media (max-width:800px){ .row{grid-template-columns:1fr} th.qty,td.qty{width:90px} th.price,td.price{width:120px} }
   </style>
 </head>
 <body>
   <header>
     <h1>
       <img src="/logo.png" alt="Logo" onerror="this.style.display='none'">
-      Angebots-App
-      <span class="pill" title="Lokale Berechnung + PDF + KI-PARSING aktiv">Status: bereit</span>
+      MeisterKI
     </h1>
   </header>
 
   <main>
-    <!-- Stammdaten + Aktionen -->
-    <div class="row">
-      <div class="card">
-        <div class="row">
-          <div><label>Firma</label><input id="company" placeholder="Betriebsname" value="Musterbetrieb GmbH"></div>
-          <div><label>Kunde</label><input id="customer" placeholder="Kunde" value="Max Mustermann"></div>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <div><label>Gewerk</label>
-            <select id="trade">
-              <option value="maler">Maler</option>
-              <option value="elektro">Elektro</option>
-              <option value="sanitär">Sanitär</option>
-              <option value="boden">Boden</option>
-              <option value="dach">Dach</option>
-            </select>
+    <!-- Tabs -->
+    <div class="tabs">
+      <button id="tab-offer" class="active">Angebot</button>
+      <button id="tab-ai">KI-Assistent</button>
+    </div>
+
+    <!-- ====== Seite: Angebot ====== -->
+    <section id="page-offer">
+      <div class="row">
+        <div class="card">
+          <div class="row">
+            <div><label>Firma</label><input id="company" placeholder="Betriebsname" value="Malerbetrieb Muster"></div>
+            <div><label>Kunde</label><input id="customer" placeholder="Kunde" value="Max Mustermann"></div>
           </div>
-          <div><label>Stundenlohn (€)</label><input id="labor" type="number" value="55"></div>
+          <div class="row" style="margin-top:8px">
+            <div><label>Gewerk</label>
+              <select id="trade">
+                <option value="maler">Maler</option>
+                <option value="elektro">Elektro</option>
+                <option value="sanitär">Sanitär</option>
+                <option value="boden">Boden</option>
+                <option value="dach">Dach</option>
+              </select>
+            </div>
+            <div><label>Stundenlohn (€)</label><input id="labor" type="number" value="55"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="actions">
+            <button id="addRowBtn" class="ghost">+ Position</button>
+            <button id="calcBtn">Kalkulieren</button>
+            <button id="pdfBtn" class="ghost" disabled>PDF exportieren</button>
+          </div>
         </div>
       </div>
 
-      <div class="card right">
-        <button id="addRowBtn" class="ghost">+ Position</button>
-        <button id="calcBtn">Kalkulieren</button>
-        <button id="pdfBtn" class="ghost" disabled>PDF exportieren</button>
+      <div class="card">
+        <table id="items">
+          <thead>
+            <tr>
+              <th>Beschreibung</th>
+              <th class="qty">Menge</th>
+              <th>Einheit</th>
+              <th class="price">Einzelpreis (€)</th>
+              <th class="price">Gesamt (€)</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot>
+            <tr><td colspan="4" style="text-align:right">Zwischensumme</td><td id="subtotal">0.00</td><td></td></tr>
+            <tr><td colspan="4" style="text-align:right">Aufschlag (10%)</td><td id="margin">0.00</td><td></td></tr>
+            <tr><td colspan="4" style="text-align:right">MwSt (19%)</td><td id="tax">0.00</td><td></td></tr>
+            <tr><td colspan="4" style="text-align:right">Gesamtsumme</td><td id="total">0.00</td><td></td></tr>
+          </tfoot>
+        </table>
       </div>
-    </div>
 
-    <!-- Positionstabelle -->
-    <div class="card">
-      <table id="items">
-        <thead>
-          <tr>
-            <th>Beschreibung</th>
-            <th class="qty">Menge</th>
-            <th>Einheit</th>
-            <th class="price">Einzelpreis (€)</th>
-            <th class="price">Gesamt (€)</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-        <tfoot>
-          <tr><td colspan="4" style="text-align:right">Zwischensumme</td><td id="subtotal">0.00</td><td></td></tr>
-          <tr><td colspan="4" style="text-align:right">Aufschlag (10%)</td><td id="margin">0.00</td><td></td></tr>
-          <tr><td colspan="4" style="text-align:right">MwSt (19%)</td><td id="tax">0.00</td><td></td></tr>
-          <tr><td colspan="4" style="text-align:right">Gesamtsumme</td><td id="total">0.00</td><td></td></tr>
-        </tfoot>
-      </table>
-    </div>
+      <div class="card">
+        <label>Letzte Antwort</label>
+        <pre id="out">Noch nichts berechnet…</pre>
+      </div>
+    </section>
 
-    <!-- KI-Assistent -->
-    <div class="card row-3">
-      <div>
-        <label>Rechnungstext (KI-Parsing)</label>
-        <textarea id="invoiceText" rows="7" placeholder="Beispiel: 
-Malerarbeiten Wohnzimmer 20 h à 45 €
-Materialfarbe 5 L à 12 €
-Abklebearbeiten 1 h à 50 €"></textarea>
-        <div class="hint">Tipp: Freitext oder kopierte Rechnung einfügen. Die KI füllt automatisch die Positionstabelle.</div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-          <button id="parseInvoiceBtn">Rechnung analysieren (KI)</button>
-          <button id="clearBtn" class="ghost" title="Tabelle leeren">Tabelle leeren</button>
-          <button id="demoBtn" class="ghost" title="Beispieltext einsetzen">Demo-Text</button>
+    <!-- ====== Seite: KI-Assistent ====== -->
+    <section id="page-ai" class="hidden">
+      <div class="card">
+        <label>Rechnungstext / Leistungsbeschreibung</label>
+        <textarea id="invoiceText" placeholder="Text hier einfügen – z. B. aus einer Rechnung oder E-Mail…"></textarea>
+        <div class="actions" style="margin-top:10px">
+          <button id="aiParseBtn">Rechnung analysieren (KI)</button>
+          <button id="aiApplyBtn" class="ghost" disabled>Positionen in Angebot übernehmen</button>
         </div>
       </div>
-      <div>
-        <details>
-          <summary>Debug: Letzte Server-Antwort anzeigen</summary>
-          <pre id="out" style="margin-top:10px;max-height:220px">Noch nichts berechnet…</pre>
-        </details>
-        <div class="hint">Die Debug-Ausgabe ist standardmäßig zugeklappt und beeinflusst die App nicht.</div>
+
+      <div class="card">
+        <label>Erkannte Positionen (Vorschau)</label>
+        <table id="aiPreview">
+          <thead><tr><th>Beschreibung</th><th>Menge</th><th>Einheit</th><th>Einzelpreis (€)</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
-    </div>
+
+      <div class="card">
+        <label>Roh-Antwort (Debug)</label>
+        <pre id="aiOut">Noch nichts analysiert…</pre>
+      </div>
+    </section>
   </main>
 
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="toast" class="toast"></div>
 
   <script>
-    // ---------- Hilfen ----------
+    // ---------- Tabs ----------
+    const tabOffer = document.getElementById("tab-offer");
+    const tabAI    = document.getElementById("tab-ai");
+    const pageOffer = document.getElementById("page-offer");
+    const pageAI    = document.getElementById("page-ai");
+    function switchTab(which){
+      if(which==="offer"){
+        tabOffer.classList.add("active"); tabAI.classList.remove("active");
+        pageOffer.classList.remove("hidden"); pageAI.classList.add("hidden");
+      } else {
+        tabAI.classList.add("active"); tabOffer.classList.remove("active");
+        pageAI.classList.remove("hidden"); pageOffer.classList.add("hidden");
+      }
+    }
+    tabOffer.onclick = ()=>switchTab("offer");
+    tabAI.onclick    = ()=>switchTab("ai");
+
+    // ---------- Angebot (wie bisher) ----------
     const tbody = document.querySelector("#items tbody");
     const out = document.getElementById("out");
     const subtotalEl = document.getElementById("subtotal");
@@ -134,27 +165,18 @@ Abklebearbeiten 1 h à 50 €"></textarea>
     const taxEl = document.getElementById("tax");
     const totalEl = document.getElementById("total");
     const pdfBtn = document.getElementById("pdfBtn");
-    const toastEl = document.getElementById("toast");
     let lastOffer = null;
-
-    function toast(msg, ok=true){
-      toastEl.textContent = msg;
-      toastEl.style.background = ok ? "#111827" : "#b91c1c";
-      toastEl.classList.add("show");
-      setTimeout(()=>toastEl.classList.remove("show"), 2200);
-    }
 
     function addRow(desc="", qty=1, unit="h", unitPrice=50) {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><input value="${desc}" placeholder="Beschreibung"></td>
-        <td class="qty"><input type="number" value="${qty}" step="0.01" min="0"></td>
+        <td class="qty"><input type="number" value="${qty}" step="0.01"></td>
         <td><input value="${unit}" placeholder="Einheit"></td>
-        <td class="price"><input type="number" value="${unitPrice}" step="0.01" min="0"></td>
+        <td class="price"><input type="number" value="${unitPrice}" step="0.01"></td>
         <td class="price" data-total>0.00</td>
-        <td><button class="ghost" aria-label="Position löschen">Entf</button></td>
+        <td><button class="ghost" onclick="this.closest('tr').remove();updateTotals();">Entf</button></td>
       `;
-      tr.querySelector("button").onclick = () => { tr.remove(); calc(); };
       tbody.appendChild(tr);
     }
 
@@ -162,17 +184,30 @@ Abklebearbeiten 1 h à 50 €"></textarea>
       const items = [];
       tbody.querySelectorAll("tr").forEach(tr=>{
         const [descInp, qtyInp, unitInp, priceInp] = tr.querySelectorAll("input");
-        const qty = Math.max(0, Number(qtyInp.value || 0));
-        const price = Math.max(0, Number(priceInp.value || 0));
+        const qty = Number(qtyInp.value || 0);
+        const price = Number(priceInp.value || 0);
         const total = qty * price;
         tr.querySelector("[data-total]").textContent = total.toFixed(2);
-        items.push({ desc: (descInp.value||"").trim(), qty, unit: (unitInp.value||"").trim(), unitPrice: price });
+        items.push({ desc: descInp.value, qty, unit: unitInp.value, unitPrice: price });
       });
       return items;
     }
 
+    function updateTotals(){
+      const items = collectItems();
+      const subtotal = items.reduce((s,it)=>s + (Number(it.qty||0)*Number(it.unitPrice||0)), 0);
+      const margin   = subtotal*0.1;
+      const netto    = subtotal+margin;
+      const tax      = netto*0.19;
+      const total    = netto+tax;
+      subtotalEl.textContent = subtotal.toFixed(2);
+      marginEl.textContent   = margin.toFixed(2);
+      taxEl.textContent      = tax.toFixed(2);
+      totalEl.textContent    = total.toFixed(2);
+    }
+
     async function calc(){
-      const items = collectItems().filter(it => it.desc);
+      const items = collectItems();
       const payload = {
         items,
         company: { name: document.getElementById("company").value || "" },
@@ -181,115 +216,40 @@ Abklebearbeiten 1 h à 50 €"></textarea>
         laborRatePerHour: Number(document.getElementById("labor").value || 0)
       };
 
-      try{
-        const res = await fetch("/api/offers/generate", {
-          method:"POST",
-          headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
+      const res = await fetch("/api/offers/generate", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
 
-        lastOffer = { ...payload, ...data };
-
-        out.textContent = JSON.stringify(lastOffer, null, 2);
-        subtotalEl.textContent = (data.subtotal||0).toFixed(2);
-        marginEl.textContent   = (data.margin||0).toFixed(2);
-        taxEl.textContent      = (data.tax||0).toFixed(2);
-        totalEl.textContent    = (data.total||0).toFixed(2);
-        pdfBtn.disabled = !data?.items?.length;
-        localStorage.setItem("meisterki_items", JSON.stringify(items));
-        toast("Kalkulation aktualisiert");
-      }catch(err){
-        console.error(err);
-        toast("Fehler bei der Kalkulation", false);
-      }
+      lastOffer = { ...payload, ...data };
+      out.textContent = JSON.stringify(lastOffer, null, 2);
+      subtotalEl.textContent = (data.subtotal||0).toFixed(2);
+      marginEl.textContent   = (data.margin||0).toFixed(2);
+      taxEl.textContent      = (data.tax||0).toFixed(2);
+      totalEl.textContent    = (data.total||0).toFixed(2);
+      pdfBtn.disabled = !data?.items?.length;
+      localStorage.setItem("meisterki_items", JSON.stringify(items));
     }
 
     async function exportPDF(){
-      if(!lastOffer) return toast("Bitte zuerst kalkulieren.", false);
-      pdfBtn.disabled = true;
-      pdfBtn.textContent = "PDF wird erstellt…";
-      try{
-        const res = await fetch("/api/offers/export-pdf/download", {
-          method:"POST",
-          headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify(lastOffer)
-        });
-        if(!res.ok){
-          const err = await res.text();
-          throw new Error(err||"Export fehlgeschlagen");
-        }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Angebot_${new Date().toISOString().slice(0,10)}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        toast("PDF exportiert");
-      }catch(e){
-        console.error(e);
-        toast("PDF-Export fehlgeschlagen", false);
-      }finally{
-        pdfBtn.disabled = false;
-        pdfBtn.textContent = "PDF exportieren";
-      }
+      if(!lastOffer) return toast("Bitte erst kalkulieren.");
+      const res = await fetch("/api/offers/export-pdf/download", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(lastOffer)
+      });
+      if(!res.ok){ const err = await res.text(); return toast("PDF-Export fehlgeschlagen: " + err); }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `Angebot_${new Date().toISOString().slice(0,10)}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     }
 
-    // ---------- KI-Parsing ----------
-    async function parseWithAI(){
-      const txt = (document.getElementById("invoiceText").value || "").trim();
-      if(!txt) return toast("Bitte Text eingeben.", false);
-
-      const btn = document.getElementById("parseInvoiceBtn");
-      const prev = btn.textContent;
-      btn.textContent = "Analysiere…";
-      btn.disabled = true;
-
-      try{
-        const res = await fetch("/api/invoice/parse", {
-          method:"POST",
-          headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify({ text: txt })
-        });
-        const data = await res.json();
-        if(!res.ok) throw new Error(data?.error || "KI-Parsing fehlgeschlagen.");
-
-        const items = Array.isArray(data.items) ? data.items : [];
-        if(!items.length) return toast("Keine Positionen erkannt.", false);
-
-        // Tabelle ersetzen
-        tbody.innerHTML = "";
-        items.forEach(it => addRow(it.desc||"", Number(it.qty||0), it.unit||"", Number(it.unitPrice||0)));
-        await calc();
-        toast("KI hat Positionen übernommen");
-      }catch(e){
-        console.error(e);
-        toast(e.message || "Fehler beim KI-Parsing", false);
-      }finally{
-        btn.textContent = prev;
-        btn.disabled = false;
-      }
-    }
-
-    // ---------- Buttons ----------
-    document.getElementById("addRowBtn").onclick = () => { addRow(); };
+    document.getElementById("addRowBtn").onclick = ()=>{ addRow(); updateTotals(); };
     document.getElementById("calcBtn").onclick = calc;
-    document.getElementById("pdfBtn").onclick = exportPDF;
-    document.getElementById("parseInvoiceBtn").onclick = parseWithAI;
-    document.getElementById("clearBtn").onclick = () => { tbody.innerHTML=""; calc(); };
-    document.getElementById("demoBtn").onclick = () => {
-      document.getElementById("invoiceText").value =
-`Kunde: Familie Müller
-Leistungen:
-- Malerarbeiten Wohnzimmer 20 h à 45 €
-- Materialfarbe 5 L à 12 €
-- Abklebearbeiten 1 h à 50 €`;
-    };
+    pdfBtn.onclick = exportPDF;
 
-    // ---------- Initialdaten ----------
     const saved = JSON.parse(localStorage.getItem("meisterki_items") || "null");
     if(saved && Array.isArray(saved) && saved.length){
       saved.forEach(r=>addRow(r.desc,r.qty,r.unit,r.unitPrice));
@@ -297,9 +257,63 @@ Leistungen:
       addRow("Malerarbeiten Wohnzimmer",20,"h",45);
       addRow("Materialfarbe",5,"L",12);
     }
-    // Erste Kalkulation
-    calc();
+    updateTotals();
+
+    // ---------- KI-Assistent ----------
+    const aiText = document.getElementById("invoiceText");
+    const aiParseBtn = document.getElementById("aiParseBtn");
+    const aiApplyBtn = document.getElementById("aiApplyBtn");
+    const aiOut = document.getElementById("aiOut");
+    const aiTBody = document.querySelector("#aiPreview tbody");
+    let aiItems = [];
+
+    aiParseBtn.onclick = async ()=>{
+      aiApplyBtn.disabled = true;
+      aiTBody.innerHTML = "";
+      aiOut.textContent = "Analysiere…";
+      try{
+        const res = await fetch("/api/invoice/parse", {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ text: aiText.value || "" })
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data?.error || "KI-Parsing fehlgeschlagen.");
+        aiItems = Array.isArray(data.items) ? data.items : [];
+        aiOut.textContent = JSON.stringify(data, null, 2);
+        if(!aiItems.length){ toast("Keine Positionen erkannt."); return; }
+        // Vorschau rendern
+        aiTBody.innerHTML = aiItems.map(p=>`
+          <tr>
+            <td>${escapeHTML(p.desc||"")}</td>
+            <td>${Number(p.qty||0)}</td>
+            <td>${escapeHTML(p.unit||"")}</td>
+            <td>${Number(p.unitPrice||0).toFixed(2)}</td>
+          </tr>`).join("");
+        aiApplyBtn.disabled = false;
+        toast("Positionen erkannt. Mit „Übernehmen…“ in Angebot einfügen.");
+      }catch(e){
+        aiOut.textContent = String(e?.message||e);
+        toast(aiOut.textContent);
+      }
+    };
+
+    aiApplyBtn.onclick = ()=>{
+      if(!aiItems.length) return;
+      aiItems.forEach(p=>{
+        addRow(p.desc||"", Number(p.qty||0)||0, p.unit||"", Number(p.unitPrice||0)||0);
+      });
+      updateTotals();
+      switchTab("offer");
+      toast("Positionen übernommen.");
+    };
+
+    // ---------- Utils ----------
+    function toast(msg){
+      const el = document.getElementById("toast");
+      el.textContent = msg; el.classList.add("show");
+      setTimeout(()=>el.classList.remove("show"), 3000);
+    }
+    function escapeHTML(s){ return (s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
   </script>
 </body>
 </html>
-
