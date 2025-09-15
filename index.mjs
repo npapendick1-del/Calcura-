@@ -4,6 +4,7 @@ import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import OpenAI from "openai"; // <- NEU
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -175,6 +176,76 @@ function exportOfferToPDF(offer) {
   return `/generated/${filename}`;
 }
 
+// =======================
+// KI: Rechnungstext -> Positionen
+// =======================
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+app.post("/api/invoice/parse", async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: "Rechnungstext fehlt." });
+    }
+
+    const prompt = `
+Du bist ein Parser für Handwerker-Rechnungen/Notizen.
+Extrahiere Angebots-Positionen und gib *ausschließlich* valides JSON zurück:
+
+{
+  "items": [
+    { "desc": "Beschreibung", "qty": Zahl, "unit": "Einheit", "unitPrice": Zahl }
+  ]
+}
+
+Regeln:
+- Dezimaltrennzeichen kann Komma sein; intern als Zahl mit Punkt interpretieren.
+- unit: z.B. "h", "Stk", "qm", "m", "L"; wenn unklar -> "".
+- Wenn nur Gesamtpreis existiert und qty vorhanden: unitPrice = Gesamt / qty.
+- Keine Erklärungen, nur JSON.
+
+Text:
+"""${text}"""
+`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    let raw = completion.choices?.[0]?.message?.content ?? "{}";
+
+    // Falls das Modell doch Text drumherum liefert -> JSON extrahieren
+    const m = raw.match(/\{[\s\S]*\}$/);
+    if (m) raw = m[0];
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return res
+        .status(500)
+        .json({ error: "KI-Antwort konnte nicht als JSON geparst werden.", raw });
+    }
+
+    // Normalisieren
+    const items = Array.isArray(parsed.items) ? parsed.items : [];
+    const normalized = items
+      .map((it) => ({
+        desc: String(it?.desc ?? "").trim(),
+        qty: Number(String(it?.qty ?? "0").replace(",", ".")) || 0,
+        unit: String(it?.unit ?? "").trim(),
+        unitPrice: Number(String(it?.unitPrice ?? "0").replace(",", ".")) || 0,
+      }))
+      .filter((it) => it.desc);
+
+    return res.json({ items: normalized });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ---- API
 app.post("/api/offers/generate", (req, res) => {
   try {
@@ -227,6 +298,7 @@ app.get("/", (req, res) => {
           body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:20px}
           code{background:#f3f4f6;padding:2px 6px;border-radius:6px}
           a.button{display:inline-block;margin-top:10px;padding:10px 14px;background:#2563eb;color:#fff;border-radius:10px;text-decoration:none}
+          pre{background:#f8fafc;border:1px solid #e5e7eb;padding:12px;border-radius:10px;max-width:800px}
         </style>
       </head>
       <body>
@@ -235,6 +307,7 @@ app.get("/", (req, res) => {
           <li><code>POST /api/offers/generate</code></li>
           <li><code>POST /api/offers/export-pdf</code></li>
           <li><code>POST /api/offers/export-pdf/download</code></li>
+          <li><code>POST /api/invoice/parse</code> <small>(KI: Rechnungstext → Positionen)</small></li>
         </ul>
         <a class="button" href="/app.html">Zur Angebots-App</a>
       </body>
@@ -246,3 +319,4 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () =>
   console.log(`MeisterKI server listening on port ${PORT}`)
 );
+
