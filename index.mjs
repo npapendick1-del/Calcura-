@@ -249,6 +249,30 @@ app.post("/api/invoice/parse", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
+}); 
+
+// ---- PDF-Liste für das PDF-Center
+app.get("/api/pdfs", (req, res) => {
+  try {
+    const dir = path.join(__dirname, "public", "generated");
+    if (!fs.existsSync(dir)) return res.json([]);
+
+    const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith(".pdf"));
+    const out = files.map(name => {
+      const full = path.join(dir, name);
+      const st = fs.statSync(full);
+      return {
+        name,
+        url: `/generated/${name}`,
+        size: st.size,
+        mtime: st.mtime,
+      };
+    }).sort((a, b) => b.mtime - a.mtime);
+
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // --- Landing Page -> Dashboard ---------------------------------------------------
