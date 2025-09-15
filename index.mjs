@@ -6,16 +6,15 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// --- Pfade/Setup ----------------------------------------------------------------
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(bodyParser.json({ limit: "10mb" })); // für größere Uploads/Prompts
-app.use(express.static(path.join(__dirname, "public"))); // /public für app.html, dashboard.html, generierte PDFs
+app.use(bodyParser.json({ limit: "10mb" }));
+app.use(express.static(path.join(__dirname, "public"))); // /public: app.html, dashboard.html, generated PDFs
 
-// --- Hilfsfunktionen -------------------------------------------------------------
-function assertOfferInput(input) {
+// ---------------------- Angebotslogik (unverändert) ----------------------
+function offerschemaParse(input) {
   if (!input || !Array.isArray(input.items)) {
     throw new Error("Ungültiges Eingabeformat: items[] fehlt");
   }
@@ -34,12 +33,22 @@ function generateOffer(input) {
   return { items: input.items, subtotal, margin, totalBeforeTax, tax, total };
 }
 
-// --- PDF-Export (sauberes Layout) -----------------------------------------------
+// ---------------------- 2.1 Export-Funktion mit schönem Dateinamen ----------------------
 function exportOfferToPDF(offer) {
   const outDir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-  const filename = `angebot-${Date.now()}.pdf`;
+  const safe = (s) =>
+    String(s || "")
+      .replace(/[^\p{L}\p{N}_-]+/gu, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 60);
+
+  const company = safe(offer?.company?.name || "Firma");
+  const customer = safe(offer?.customer?.name || "Kunde");
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = `Angebot_${company}_${customer}_${date}.pdf`;
   const filePath = path.join(outDir, filename);
 
   const companyName = offer?.company?.name || "Ihr Handwerksbetrieb";
@@ -52,7 +61,7 @@ function exportOfferToPDF(offer) {
   const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
   doc.pipe(fs.createWriteStream(filePath));
 
-  // Logo (optional)
+  // Optionales Logo
   const logoPath = path.join(__dirname, "public", "logo.png");
   if (fs.existsSync(logoPath)) {
     try {
@@ -112,7 +121,6 @@ function exportOfferToPDF(offer) {
   const boxY = y + 20;
   doc.rect(300, boxY, 250, 100).fill("#f8fafc").stroke("#e5e7eb");
   doc.fillColor("#000").font("Helvetica").fontSize(10);
-
   const line = (label, val, bold = false) => {
     if (bold) doc.font("Helvetica-Bold");
     doc.text(label, 310, doc.y + 5, { continued: true });
@@ -129,24 +137,29 @@ function exportOfferToPDF(offer) {
   // Hinweise / AGB
   doc.moveDown(3);
   doc.font("Helvetica-Bold").fontSize(11).text("Hinweise / AGB (Kurzfassung)");
-  doc.font("Helvetica").fontSize(9).fillColor("#333").text(
-    "• Dieses Angebot ist 30 Tage gültig. Alle Preise in EUR zzgl. gesetzlicher MwSt.\n" +
-      "• Abweichungen/Zusatzleistungen werden gesondert berechnet.\n" +
-      "• Zahlungsziel: 14 Tage netto ohne Abzug.\n" +
-      "• Es gelten unsere allgemeinen Geschäftsbedingungen.",
-    { width: 500 }
-  );
+  doc
+    .font("Helvetica")
+    .fontSize(9)
+    .fillColor("#333")
+    .text(
+      "• Dieses Angebot ist 30 Tage gültig. Alle Preise verstehen sich in EUR zzgl. gesetzlicher MwSt.\n" +
+        "• Abweichungen oder Zusatzleistungen werden gesondert berechnet.\n" +
+        "• Zahlungsziel: 14 Tage netto ohne Abzug.\n" +
+        "• Es gelten unsere allgemeinen Geschäftsbedingungen.",
+      { width: 500 }
+    );
 
-  // Footer auf jeder Seite
+  // Footer & Seitenzahlen
   const range = doc.bufferedPageRange();
   for (let i = 0; i < range.count; i++) {
     doc.switchToPage(i);
-    doc.fontSize(8).fillColor("#6b7280").text(
-      `${companyName} • kontakt@example.com • 01234 / 567890`,
-      50,
-      doc.page.height - 60,
-      { width: 500, align: "center" }
-    );
+    doc
+      .fontSize(8)
+      .fillColor("#6b7280")
+      .text(`${companyName} • kontakt@example.com • 01234 / 567890`, 50, doc.page.height - 60, {
+        width: 500,
+        align: "center",
+      });
     doc.text(`Seite ${i + 1} von ${range.count}`, 50, doc.page.height - 45, {
       width: 500,
       align: "right",
@@ -154,13 +167,15 @@ function exportOfferToPDF(offer) {
   }
 
   doc.end();
-  return `/generated/${filename}`; // öffentlich über /public erreichbar
+
+  // Rückgabe für API-Use
+  return { url: `/generated/${filename}`, filename };
 }
 
-// --- API: Angebot berechnen ------------------------------------------------------
+// ---------------------- Angebots-APIs ----------------------
 app.post("/api/offers/generate", (req, res) => {
   try {
-    const input = assertOfferInput(req.body);
+    const input = offerschemaParse(req.body);
     const offer = generateOffer(input);
     res.json(offer);
   } catch (e) {
@@ -168,33 +183,70 @@ app.post("/api/offers/generate", (req, res) => {
   }
 });
 
-// --- API: PDF erzeugen (Pfad zurückgeben) ---------------------------------------
+// ---------------------- 2.2 Export-Endpoints aktualisiert ----------------------
 app.post("/api/offers/export-pdf", (req, res) => {
   try {
     const offer = req.body;
-    const publicPath = exportOfferToPDF(offer);
-    res.json({ ok: true, path: publicPath }); // z.B. /generated/angebot-xxx.pdf
+    const { url, filename } = exportOfferToPDF(offer);
+    res.json({ ok: true, path: url, filename });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
 });
 
-// --- API: PDF direkt downloaden (POST -> Blob) ----------------------------------
 app.post("/api/offers/export-pdf/download", (req, res) => {
   try {
     const offer = req.body;
-    const publicPath = exportOfferToPDF(offer);
-    const absPath = path.join(__dirname, "public", publicPath.replace(/^\//, ""));
+    const { url, filename } = exportOfferToPDF(offer);
+    const absPath = path.join(__dirname, "public", url.replace(/^\//, ""));
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="Angebot.pdf"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     fs.createReadStream(absPath).pipe(res);
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
 });
 
-// --- API: KI-Assistent (Rechnungstext -> Positionen) ----------------------------
-// Nutzt OpenAI (moderne responses-API). Stelle sicher, dass OPENAI_API_KEY als Env gesetzt ist.
+// ---------------------- 2.3 PDF-API: Liste & Löschen ----------------------
+app.get("/api/pdfs/list", (req, res) => {
+  const dir = path.join(__dirname, "public", "generated");
+  if (!fs.existsSync(dir)) return res.json({ items: [] });
+
+  try {
+    const items = fs
+      .readdirSync(dir)
+      .filter((f) => f.toLowerCase().endsWith(".pdf"))
+      .map((name) => {
+        const full = path.join(dir, name);
+        const st = fs.statSync(full);
+        return {
+          name,
+          url: `/generated/${name}`,
+          size: st.size,
+          mtime: st.mtimeMs,
+        };
+      })
+      .sort((a, b) => b.mtime - a.mtime);
+
+    res.json({ items });
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+app.delete("/api/pdfs", (req, res) => {
+  const name = String(req.query.name || "");
+  if (!name || name.includes("..") || name.includes("/") || name.includes("\\")) {
+    return res.status(400).json({ error: "Ungültiger Dateiname" });
+  }
+  const p = path.join(__dirname, "public", "generated", name);
+  fs.unlink(p, (err) => {
+    if (err) return res.status(404).json({ error: "Datei nicht gefunden" });
+    res.json({ ok: true });
+  });
+});
+
+// ---------------------- KI-Assistent (unverändert) ----------------------
 app.post("/api/invoice/parse", async (req, res) => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -208,19 +260,18 @@ app.post("/api/invoice/parse", async (req, res) => {
   }
 
   try {
-    // Node 18+/22+ hat global fetch
     const resp = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         input:
           "Extrahiere strukturierte Angebotspositionen aus folgendem Rechnungstext. " +
-          "Gib ein JSON-Objekt im Format {items:[{desc,qty,unit,unitPrice},...]} zurück. " +
-          "Zahlen als number. Wenn etwas unsicher ist, schätze vorsichtig und erwähne es nicht extra.\n\n" +
+          'Gib ein JSON-Objekt im Format {"items":[{"desc","qty","unit","unitPrice"}]} zurück. ' +
+          "Zahlen als number; wenn unsicher, vorsichtig schätzen.\n\n" +
           text,
         temperature: 0.2,
       }),
@@ -232,56 +283,27 @@ app.post("/api/invoice/parse", async (req, res) => {
     }
 
     const data = await resp.json();
-    // Das „responses“-API liefert das Modell-Output unter data.output_text
     const raw = data.output_text || "";
     let parsed;
     try {
       parsed = JSON.parse(raw);
     } catch {
-      // Falls das Modell z. B. mit Text drumherum antwortet, mit Regex den JSON-Block ziehen
       const match = raw.match(/\{[\s\S]*\}/);
       parsed = match ? JSON.parse(match[0]) : { items: [] };
     }
-
-    // rücksichern auf erwartete Struktur
     if (!parsed || !Array.isArray(parsed.items)) parsed = { items: [] };
     res.json(parsed);
   } catch (e) {
     res.status(500).json({ error: String(e?.message || e) });
   }
-}); 
-
-// ---- PDF-Liste für das PDF-Center
-app.get("/api/pdfs", (req, res) => {
-  try {
-    const dir = path.join(__dirname, "public", "generated");
-    if (!fs.existsSync(dir)) return res.json([]);
-
-    const files = fs.readdirSync(dir).filter(f => f.toLowerCase().endsWith(".pdf"));
-    const out = files.map(name => {
-      const full = path.join(dir, name);
-      const st = fs.statSync(full);
-      return {
-        name,
-        url: `/generated/${name}`,
-        size: st.size,
-        mtime: st.mtime,
-      };
-    }).sort((a, b) => b.mtime - a.mtime);
-
-    res.json(out);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
 });
 
-// --- Landing Page -> Dashboard ---------------------------------------------------
-// Root lädt das neue Dashboard (Kacheln für „Angebot“ & „KI-Assistent“)
+// ---------------------- Landing Page -> Dashboard ----------------------
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "dashboard.html"));
 });
 
-// --- Serverstart -----------------------------------------------------------------
+// ---------------------- Start ----------------------
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`MeisterKI server listening on port ${PORT}`);
