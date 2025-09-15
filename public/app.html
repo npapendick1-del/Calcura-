@@ -259,11 +259,40 @@
       localStorage.setItem("meisterki_items", JSON.stringify(items));
     }
 
-    async function exportPDF(){
-      if(!lastOffer) return toast("Bitte erst kalkulieren.");
-      const res = await fetch("/api/offers/export-pdf/download", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify(lastOffer)
+   <script>
+  async function exportPDF(){
+    if(!lastOffer) { return toast("Bitte erst kalkulieren."); }
+
+    // 1) Lass den Server die PDF erzeugen und im /public/generated/ Ordner ablegen
+    const res = await fetch("/api/offers/export-pdf", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(lastOffer)
+    });
+    if(!res.ok){
+      const t = await res.text();
+      return toast("PDF-Export fehlgeschlagen: " + t);
+    }
+    const data = await res.json();
+    const path = data?.path;      // z.B. /generated/Angebot_Firma_Kunde_YYYY-MM-DD.pdf
+    const filename = data?.filename || "Angebot.pdf";
+
+    if(!path){
+      return toast("Kein Pfad vom Server erhalten.");
+    }
+
+    // 2) Jetzt aus dem öffentlich erreichbaren /generated/ laden
+    //    So bleibt der Dateiname erhalten und die Datei ist im PDF-Center sichtbar.
+    const a = document.createElement("a");
+    a.href = path;        // GET auf /generated/… (statische Datei)
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    toast("PDF gespeichert. Im PDF-Center verfügbar.");
+  }
+    
       });
       if(!res.ok){ const err = await res.text(); return toast("PDF-Export fehlgeschlagen: " + err); }
       const blob = await res.blob();
