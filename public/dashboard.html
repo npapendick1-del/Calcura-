@@ -6,7 +6,8 @@
   <title>MeisterKI – Dashboard</title>
   <style>
     :root{--txt:#0b1220;--muted:#6b7280;--bg:#ffffff;--tile:#f8fafc;--line:#e5e7eb;--brand:#2563eb}
-    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--txt);background:var(--bg)}
+    *{box-sizing:border-box} 
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--txt);background:var(--bg)}
     header{display:flex;gap:10px;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}
     header h1{margin:0;font-size:18px}
     main{max-width:1100px;margin:0 auto;padding:18px;display:grid;gap:16px}
@@ -18,7 +19,6 @@
     .tile h2{margin:0 0 6px 0;font-size:16px;display:flex;gap:8px;align-items:center}
     .muted{color:var(--muted);font-size:14px;margin:0 0 12px 0}
     .btn{display:inline-block;background:var(--brand);color:#fff;padding:10px 14px;border-radius:10px;text-decoration:none}
-    .badge{background:#eef2f7;color:#111;padding:4px 8px;border-radius:8px}
   </style>
 </head>
 <body>
@@ -52,23 +52,22 @@
 
     <section class="tile">
       <h2>👥 Kundenverwaltung</h2>
-      <p class="muted">Stammdaten, Ansprechpartner, Historie – (in Arbeit).</p>
-      <span class="badge">Bald verfügbar</span>
+      <p class="muted">Stammdaten, Ansprechpartner, Historie.</p>
+      <a class="btn" href="/customers.html">Öffnen</a>
     </section>
 
     <section class="tile">
       <h2>🗂️ Projektverwaltung</h2>
-      <p class="muted">Projekte, Dateien, Termine – (in Arbeit).</p>
-      <span class="badge">Bald verfügbar</span>
+      <p class="muted">Projekte, Dateien, Termine.</p>
+      <a class="btn" href="/projects.html">Öffnen</a>
     </section>
 
     <section class="tile">
       <h2>⚙️ Einstellungen</h2>
-      <p class="muted">Firmendaten, Logo, Defaults – (in Arbeit).</p>
-      <span class="badge">Bald verfügbar</span>
+      <p class="muted">Firmendaten, Logo, Defaults.</p>
+      <a class="btn" href="/settings.html">Öffnen</a>
     </section>
   </div>
 </main>
 </body>
 </html>
-
