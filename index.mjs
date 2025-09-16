@@ -246,6 +246,146 @@ app.delete("/api/pdfs", (req, res) => {
   });
 });
 
+// ======= Mini JSON Store (./data/*.json) =======
+const DATA_DIR = path.join(__dirname, "data");
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+function readJson(fname, fallback) {
+  const p = path.join(DATA_DIR, fname);
+  try {
+    if (!fs.existsSync(p)) return fallback;
+    return JSON.parse(fs.readFileSync(p, "utf-8"));
+  } catch {
+    return fallback;
+  }
+}
+function writeJson(fname, data) {
+  const p = path.join(DATA_DIR, fname);
+  fs.writeFileSync(p, JSON.stringify(data, null, 2), "utf-8");
+}
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+// ======= Einstellungen =======
+app.get("/api/settings", (req, res) => {
+  const s = readJson("settings.json", {
+    companyName: "",
+    email: "",
+    phone: "",
+    address: "",
+    taxRate: 19,
+    marginRate: 10,
+  });
+  res.json(s);
+});
+app.put("/api/settings", (req, res) => {
+  const s = req.body || {};
+  const merged = {
+    companyName: String(s.companyName || ""),
+    email: String(s.email || ""),
+    phone: String(s.phone || ""),
+    address: String(s.address || ""),
+    taxRate: Number(s.taxRate ?? 19),
+    marginRate: Number(s.marginRate ?? 10),
+  };
+  writeJson("settings.json", merged);
+  res.json({ ok: true });
+});
+
+// ======= Kunden =======
+app.get("/api/customers", (req, res) => {
+  const list = readJson("customers.json", []);
+  res.json({ items: list });
+});
+app.post("/api/customers", (req, res) => {
+  const list = readJson("customers.json", []);
+  const c = req.body || {};
+  const item = {
+    id: uid(),
+    name: String(c.name || ""),
+    email: String(c.email || ""),
+    phone: String(c.phone || ""),
+    street: String(c.street || ""),
+    city: String(c.city || ""),
+    note: String(c.note || ""),
+    createdAt: Date.now(),
+  };
+  list.push(item);
+  writeJson("customers.json", list);
+  res.json(item);
+});
+app.put("/api/customers/:id", (req, res) => {
+  const id = req.params.id;
+  const list = readJson("customers.json", []);
+  const idx = list.findIndex(x => x.id === id);
+  if (idx < 0) return res.status(404).json({ error: "Not found" });
+  const c = req.body || {};
+  list[idx] = { ...list[idx],
+    name: String(c.name ?? list[idx].name),
+    email: String(c.email ?? list[idx].email),
+    phone: String(c.phone ?? list[idx].phone),
+    street: String(c.street ?? list[idx].street),
+    city: String(c.city ?? list[idx].city),
+    note: String(c.note ?? list[idx].note),
+  };
+  writeJson("customers.json", list);
+  res.json({ ok: true });
+});
+app.delete("/api/customers/:id", (req, res) => {
+  const id = req.params.id;
+  const list = readJson("customers.json", []);
+  const next = list.filter(x => x.id !== id);
+  if (next.length === list.length) return res.status(404).json({ error: "Not found" });
+  writeJson("customers.json", next);
+  res.json({ ok: true });
+});
+
+// ======= Projekte =======
+app.get("/api/projects", (req, res) => {
+  const list = readJson("projects.json", []);
+  res.json({ items: list });
+});
+app.post("/api/projects", (req, res) => {
+  const list = readJson("projects.json", []);
+  const p = req.body || {};
+  const item = {
+    id: uid(),
+    title: String(p.title || ""),
+    customerId: String(p.customerId || ""),
+    status: String(p.status || "offen"), // offen | laufend | abgeschlossen
+    budget: Number(p.budget || 0),
+    note: String(p.note || ""),
+    createdAt: Date.now(),
+  };
+  list.push(item);
+  writeJson("projects.json", list);
+  res.json(item);
+});
+app.put("/api/projects/:id", (req, res) => {
+  const id = req.params.id;
+  const list = readJson("projects.json", []);
+  const idx = list.findIndex(x => x.id === id);
+  if (idx < 0) return res.status(404).json({ error: "Not found" });
+  const p = req.body || {};
+  list[idx] = { ...list[idx],
+    title: String(p.title ?? list[idx].title),
+    customerId: String(p.customerId ?? list[idx].customerId),
+    status: String(p.status ?? list[idx].status),
+    budget: Number(p.budget ?? list[idx].budget),
+    note: String(p.note ?? list[idx].note),
+  };
+  writeJson("projects.json", list);
+  res.json({ ok: true });
+});
+app.delete("/api/projects/:id", (req, res) => {
+  const id = req.params.id;
+  const list = readJson("projects.json", []);
+  const next = list.filter(x => x.id !== id);
+  if (next.length === list.length) return res.status(404).json({ error: "Not found" });
+  writeJson("projects.json", next);
+  res.json({ ok: true });
+});
+
+
 // ---------------------- KI-Assistent (unverändert) ----------------------
 app.post("/api/invoice/parse", async (req, res) => {
   const apiKey = process.env.OPENAI_API_KEY;
