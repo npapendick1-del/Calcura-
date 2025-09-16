@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Login</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#f9fafb;display:flex;align-items:center;justify-content:center;height:100vh}
+.box{background:#fff;padding:22px;border:1px solid #e5e7eb;border-radius:12px;width:320px}
+h2{margin:0 0 12px 0;font-size:18px}
+input{width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:10px;margin:6px 0;background:#fff;font:inherit}
+button{width:100%;padding:10px 14px;border:0;border-radius:10px;background:#2563eb;color:#fff;cursor:pointer;margin-top:8px}
+.err{color:#b91c1c;font-size:13px;height:18px}
+.small{margin-top:10px;font-size:12px;color:#6b7280;text-align:center}
+</style>
+</head>
+<body>
+  <div class="box">
+    <h2>Anmeldung</h2>
+    <input id="user" placeholder="Benutzername" autocomplete="username">
+    <input id="pass" type="password" placeholder="Passwort" autocomplete="current-password">
+    <button id="btn">Einloggen</button>
+    <div id="err" class="err"></div>
+    <div class="small">Tipp: Der erste Admin wird per ENV <code>ADMIN_PASS</code> angelegt.</div>
+  </div>
+<script>
+document.getElementById("btn").onclick = async ()=>{
+  const res = await fetch("/api/auth/login", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ username: user.value, password: pass.value })
+  });
+  if(res.ok){ location.href="/dashboard.html"; }
+  else {
+    const t = await res.json().catch(()=>({error:"Fehler"}));
+    document.getElementById("err").textContent = t?.error || "Falsche Daten";
+  }
+};
+</script>
+</body>
+</html>
