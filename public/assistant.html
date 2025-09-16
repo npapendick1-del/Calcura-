@@ -1,107 +1,77 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>KI-Assistent</title>
-  <style>
-    :root{--txt:#0b1220;--muted:#6b7280;--bg:#fff;--line:#e5e7eb;--brand:#2563eb}
-    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--txt);background:var(--bg)}
-    header{padding:14px 20px;border-bottom:1px solid var(--line)} h1{margin:0;font-size:18px}
-    main{max-width:1100px;margin:0 auto;padding:18px;display:grid;gap:14px}
-    textarea{width:100%;min-height:180px;padding:12px;border:1px solid var(--line);border-radius:10px;font:inherit}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    button{background:var(--brand);color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
-    .ghost{background:#eef2f7;color:#111}
-    table{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
-    th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
-    .muted{color:var(--muted)}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>KI-Assistent</title>
+<style>
+:root{--txt:#0b1220;--muted:#6b7280;--card:#f8fafc;--brand:#2563eb}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--txt)}
+header{padding:16px 20px;border-bottom:1px solid #eef2f7;display:flex;gap:12px;align-items:center}
+header h1{margin:0;font-size:18px}
+.back-btn{display:inline-block;background:#e5e7eb;color:#111827;padding:6px 12px;border-radius:8px;text-decoration:none}
+.back-btn:hover{background:#d1d5db}
+main{max-width:1100px;margin:0 auto;padding:18px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid #e5e7eb;border-radius:12px;padding:14px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+textarea,input,button{font:inherit}
+textarea{width:100%;min-height:220px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+button{padding:10px 14px;border:0;border-radius:10px;background:var(--brand);color:#fff;cursor:pointer}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}
+th,td{padding:10px;border-bottom:1px solid #edf0f4;text-align:left;font-size:14px}
+pre{background:#f6f8fb;border:1px solid #e5e7eb;border-radius:12px;padding:14px;overflow:auto}
+</style>
 </head>
 <body>
-<header><h1>🤖 KI-Assistent</h1></header>
+<header>
+  <a href="/dashboard.html" class="back-btn">← Zurück zum Dashboard</a>
+  <h1>KI-Assistent</h1>
+</header>
 <main>
-  <p class="muted">Füge hier z.B. eine Rechnung/Kostenvoranschlag als Text ein. Die KI extrahiert Positionen (Beschreibung, Menge, Einheit, Preis).</p>
-  <textarea id="invoice" placeholder="Rechnungstext hier einfügen …"></textarea>
-  <div class="row">
-    <button id="parseBtn">Positionen erkennen</button>
-    <button class="ghost" onclick="location.href='/dashboard.html'">Zurück zum Dashboard</button>
-  </div>
-
-  <div id="result" style="display:none">
-    <h3>Erkannte Positionen</h3>
-    <table>
-      <thead><tr><th>Beschreibung</th><th>Menge</th><th>Einheit</th><th>Einzelpreis (€)</th></tr></thead>
-      <tbody id="items"></tbody>
-    </table>
-    <div class="row">
-      <button id="toAppBtn">In Angebots-App übernehmen</button>
+  <div class="card">
+    <label>Rechnungstext / Leistungsbeschreibung</label>
+    <textarea id="txt" placeholder="Text hier einfügen…"></textarea>
+    <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+      <button id="analyze">Rechnung analysieren (KI)</button>
     </div>
   </div>
 
-  <pre id="raw" class="muted" style="white-space:pre-wrap"></pre>
+  <div class="card">
+    <label>Erkannte Positionen (Vorschau)</label>
+    <table id="tbl"><thead><tr><th>Beschreibung</th><th>Menge</th><th>Einheit</th><th>Einzelpreis (€)</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <label>Roh-Antwort (Debug)</label>
+    <pre id="out">Noch nichts…</pre>
+  </div>
 </main>
-
 <script>
-const invoiceEl = document.getElementById("invoice");
-const parseBtn  = document.getElementById("parseBtn");
-const result    = document.getElementById("result");
-const itemsTbody= document.getElementById("items");
-const rawEl     = document.getElementById("raw");
-const toAppBtn  = document.getElementById("toAppBtn");
-
-parseBtn.onclick = async () => {
-  const text = invoiceEl.value.trim();
-  if(!text){ alert("Bitte Text einfügen."); return; }
-
-  parseBtn.disabled = true; parseBtn.textContent = "Wird analysiert…";
-  rawEl.textContent = "";
-  try{
-    const res = await fetch("/api/invoice/parse", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ text })
-    });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data?.error || "Analyse fehlgeschlagen.");
-
-    // Fallback: falls dein Backend die Items flach unter data.items liefert
-    const items = data.items || data?.parsed?.items || [];
-    itemsTbody.innerHTML = "";
-    for(const it of items){
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${(it.desc||it.description||"").toString()}</td>
-        <td>${Number(it.qty||it.quantity||0)}</td>
-        <td>${(it.unit||"").toString()}</td>
-        <td>${Number(it.unitPrice||it.price||0)}</td>
-      `;
-      itemsTbody.appendChild(tr);
-    }
-    result.style.display = "block";
-
-    // Speichere Items temporär, damit „In Angebots-App übernehmen“ funktioniert
-    window.__parsedItems = items.map(it => ({
-      desc: (it.desc||it.description||"").toString(),
-      qty:  Number(it.qty||it.quantity||0),
-      unit: (it.unit||"").toString(),
-      unitPrice: Number(it.unitPrice||it.price||0),
-    }));
-
-    rawEl.textContent = JSON.stringify(data, null, 2);
-  }catch(e){
-    alert(e.message);
-  }finally{
-    parseBtn.disabled = false; parseBtn.textContent = "Positionen erkennen";
-  }
+const out = document.getElementById("out");
+const tbody = document.querySelector("#tbl tbody");
+document.getElementById("analyze").onclick = async ()=>{
+  out.textContent = "Analysiere…";
+  tbody.innerHTML = "";
+  const res = await fetch("/api/invoice/parse", {
+    method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ text: document.getElementById("txt").value || "" })
+  });
+  const data = await res.json();
+  if(!res.ok){ out.textContent = data?.error || "Fehler"; return; }
+  out.textContent = JSON.stringify(data, null, 2);
+  const items = Array.isArray(data.items) ? data.items : [];
+  if(!items.length){ tbody.innerHTML = "<tr><td colspan='4'>Keine Positionen erkannt.</td></tr>"; return; }
+  tbody.innerHTML = items.map(p=>`
+    <tr>
+      <td>${esc(p.desc||"")}</td>
+      <td>${Number(p.qty||0)}</td>
+      <td>${esc(p.unit||"")}</td>
+      <td>${Number(p.unitPrice||0).toFixed(2)}</td>
+    </tr>
+  `).join("");
 };
-
-toAppBtn.onclick = () => {
-  const arr = Array.isArray(window.__parsedItems) ? window.__parsedItems : [];
-  if(!arr.length){ alert("Keine Positionen vorhanden."); return; }
-  localStorage.setItem("meisterki_items", JSON.stringify(arr));
-  location.href = "/app.html";
-};
+function esc(s){return String(s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m]))}
 </script>
 </body>
 </html>
