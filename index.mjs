@@ -6,11 +6,58 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+// NEU: Login/Sessions
+import session from "express-session";
+import bcrypt from "bcrypt";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(bodyParser.json({ limit: "10mb" }));
+
+// ====== Login / Session-Setup (muss vor Schutz & static kommen) ======
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "supergeheim",
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+// Pfade, die nur eingeloggt erreichbar sein sollen
+const PROTECTED_SET = new Set([
+  "/dashboard.html",
+  "/app.html",
+  "/assistant.html",
+  "/pdfs.html",
+  "/customers.html",
+  "/projects.html",
+  "/settings.html",
+  "/users.html",
+]);
+
+// Schutz-Middleware (läuft vor express.static)
+app.use((req, res, next) => {
+  const p = req.path;
+  // frei zugänglich:
+  if (
+    p === "/login.html" ||
+    p.startsWith("/api/auth/") ||
+    p.startsWith("/generated/") || // gespeicherte PDFs
+    p === "/logo.png"
+  ) {
+    return next();
+  }
+  // HTML-Seiten schützen
+  if (PROTECTED_SET.has(p)) {
+    if (req.session?.user) return next();
+    return res.redirect("/login.html");
+  }
+  next();
+});
+
+// Statische Dateien (HTML/CSS/JS, inkl. gespeicherten PDFs)
 app.use(express.static(path.join(__dirname, "public"))); // /public: app.html, dashboard.html, generated PDFs
 
 // ---------------------- Angebotslogik (unverändert) ----------------------
@@ -131,7 +178,7 @@ function exportOfferToPDF(offer) {
   line("Zwischensumme", offer.subtotal);
   line("Aufschlag (10%)", offer.margin);
   line("Netto", offer.totalBeforeTax);
-  line("MwSt (19%)", offer.tax);
+  line("MwSt", offer.tax);
   line("Gesamtsumme", offer.total, true);
 
   // Hinweise / AGB
@@ -263,7 +310,9 @@ function writeJson(fname, data) {
   const p = path.join(DATA_DIR, fname);
   fs.writeFileSync(p, JSON.stringify(data, null, 2), "utf-8");
 }
-function uid() { return Math.random().toString(36).slice(2, 10); }
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
 
 // ======= Einstellungen =======
 app.get("/api/settings", (req, res) => {
@@ -316,10 +365,11 @@ app.post("/api/customers", (req, res) => {
 app.put("/api/customers/:id", (req, res) => {
   const id = req.params.id;
   const list = readJson("customers.json", []);
-  const idx = list.findIndex(x => x.id === id);
+  const idx = list.findIndex((x) => x.id === id);
   if (idx < 0) return res.status(404).json({ error: "Not found" });
   const c = req.body || {};
-  list[idx] = { ...list[idx],
+  list[idx] = {
+    ...list[idx],
     name: String(c.name ?? list[idx].name),
     email: String(c.email ?? list[idx].email),
     phone: String(c.phone ?? list[idx].phone),
@@ -333,7 +383,7 @@ app.put("/api/customers/:id", (req, res) => {
 app.delete("/api/customers/:id", (req, res) => {
   const id = req.params.id;
   const list = readJson("customers.json", []);
-  const next = list.filter(x => x.id !== id);
+  const next = list.filter((x) => x.id !== id);
   if (next.length === list.length) return res.status(404).json({ error: "Not found" });
   writeJson("customers.json", next);
   res.json({ ok: true });
@@ -363,10 +413,11 @@ app.post("/api/projects", (req, res) => {
 app.put("/api/projects/:id", (req, res) => {
   const id = req.params.id;
   const list = readJson("projects.json", []);
-  const idx = list.findIndex(x => x.id === id);
+  const idx = list.findIndex((x) => x.id === id);
   if (idx < 0) return res.status(404).json({ error: "Not found" });
   const p = req.body || {};
-  list[idx] = { ...list[idx],
+  list[idx] = {
+    ...list[idx],
     title: String(p.title ?? list[idx].title),
     customerId: String(p.customerId ?? list[idx].customerId),
     status: String(p.status ?? list[idx].status),
@@ -379,14 +430,123 @@ app.put("/api/projects/:id", (req, res) => {
 app.delete("/api/projects/:id", (req, res) => {
   const id = req.params.id;
   const list = readJson("projects.json", []);
-  const next = list.filter(x => x.id !== id);
+  const next = list.filter((x) => x.id !== id);
   if (next.length === list.length) return res.status(404).json({ error: "Not found" });
   writeJson("projects.json", next);
   res.json({ ok: true });
 });
 
+// ======= Auth: mehrere Nutzer (Sessions + users.json) =======
+// Eigene helpers für Auth (nutzen selben /data Ordner)
+function authRead(fname, fallback) {
+  const p = path.join(DATA_DIR, fname);
+  try {
+    return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf-8")) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function authWrite(fname, data) {
+  const p = path.join(DATA_DIR, fname);
+  fs.writeFileSync(p, JSON.stringify(data, null, 2), "utf-8");
+}
+function authUid() {
+  return Math.random().toString(36).slice(2, 10);
+}
 
-// ---------------------- KI-Assistent (unverändert) ----------------------
+// Ersten Admin über ENV anlegen (einmalig)
+(function ensureAdmin() {
+  const users = authRead("users.json", []);
+  if (users.length === 0) {
+    const adminUser = process.env.ADMIN_USER || "admin";
+    const adminPass = process.env.ADMIN_PASS || null;
+    if (adminPass) {
+      const hash = bcrypt.hashSync(adminPass, 10);
+      users.push({
+        id: authUid(),
+        username: adminUser,
+        passhash: hash,
+        role: "admin",
+        createdAt: Date.now(),
+      });
+      authWrite("users.json", users);
+      console.log(`[auth] Admin-User '${adminUser}' angelegt (ENV).`);
+    } else {
+      console.warn(
+        "[auth] Kein ADMIN_PASS gesetzt. Setze ENV ADMIN_PASS, um initialen Admin zu erzeugen."
+      );
+    }
+  }
+})();
+
+// Login / Logout
+app.post("/api/auth/login", async (req, res) => {
+  const { username, password } = req.body || {};
+  const users = authRead("users.json", []);
+  const u = users.find((x) => x.username === String(username || ""));
+  if (!u) return res.status(401).json({ error: "Unauthorized" });
+  const ok = await bcrypt.compare(String(password || ""), u.passhash);
+  if (!ok) return res.status(401).json({ error: "Unauthorized" });
+  req.session.user = { id: u.id, username: u.username, role: u.role };
+  res.json({ ok: true, user: req.session.user });
+});
+app.post("/api/auth/logout", (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }));
+});
+
+// Nur Admin
+function requireAdmin(req, res, next) {
+  if (req.session?.user?.role === "admin") return next();
+  return res.status(403).json({ error: "Forbidden" });
+}
+app.get("/api/users", (req, res, next) => {
+  if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
+  return requireAdmin(req, res, () => {
+    const users = authRead("users.json", []).map((u) => ({
+      id: u.id,
+      username: u.username,
+      role: u.role,
+      createdAt: u.createdAt,
+    }));
+    res.json({ items: users });
+  });
+});
+app.post("/api/users", (req, res, next) => {
+  if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
+  return requireAdmin(req, res, async () => {
+    const { username, password, role } = req.body || {};
+    if (!username || !password)
+      return res.status(400).json({ error: "username/password erforderlich" });
+    const users = authRead("users.json", []);
+    if (users.some((u) => u.username === username))
+      return res.status(409).json({ error: "Benutzer existiert" });
+    const hash = await bcrypt.hash(String(password), 10);
+    const item = {
+      id: authUid(),
+      username,
+      passhash: hash,
+      role: role === "admin" ? "admin" : "user",
+      createdAt: Date.now(),
+    };
+    users.push(item);
+    authWrite("users.json", users);
+    res.json({ id: item.id, username: item.username, role: item.role });
+  });
+});
+app.delete("/api/users/:id", (req, res, next) => {
+  if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
+  return requireAdmin(req, res, () => {
+    const { id } = req.params;
+    const users = authRead("users.json", []);
+    const nextUsers = users.filter((u) => u.id !== id);
+    if (nextUsers.length === users.length) return res.status(404).json({ error: "Not found" });
+    authWrite("users.json", nextUsers);
+    if (req.session?.user?.id === id) req.session.destroy(() => {});
+    res.json({ ok: true });
+  });
+});
+
+// ---------------------- KI-Assistent ----------------------
 app.post("/api/invoice/parse", async (req, res) => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
