@@ -8,28 +8,17 @@
     :root { --txt:#0b1220; --muted:#6b7280; --card:#f8fafc; --brand:#2563eb; }
     *{box-sizing:border-box}
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:#fff;color:var(--txt)}
-    header{padding:16px 20px;border-bottom:1px solid #eef2f7}
+    header{padding:16px 20px;border-bottom:1px solid #eef2f7;display:flex;gap:12px;align-items:center}
     header h1{margin:0;font-size:18px;display:flex;gap:10px;align-items:center}
     header img{height:22px}
+    .back-btn{display:inline-block;background:#e5e7eb;color:#111827;padding:6px 12px;border-radius:8px;text-decoration:none}
+    .back-btn:hover{background:#d1d5db}
     main{padding:20px;display:grid;gap:16px;max-width:1100px;margin:0 auto}
 
-    /* Tabs – sichtbare Beschriftung */
     .tabs{display:flex;gap:8px;margin:4px 0 8px 0}
-    .tabs button{
-      padding:8px 14px;
-      border-radius:10px;
-      border:1px solid #e5e7eb;
-      background:#fff;
-      color: var(--txt);
-      font-weight:600;
-      cursor:pointer;
-    }
-    .tabs button:hover{ background:#f3f4f6 }
-    .tabs button.active{
-      background: var(--brand);
-      color:#fff;
-      border-color: var(--brand);
-    }
+    .tabs button{padding:8px 14px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#0b1220;font-weight:600;cursor:pointer}
+    .tabs button:hover{background:#f3f4f6}
+    .tabs button.active{background:var(--brand);color:#fff;border-color:var(--brand)}
     .hidden{display:none}
 
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -49,26 +38,15 @@
     .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 14px;border-radius:10px;font-size:14px;display:none}
     .toast.show{display:block}
 
-    /* Badge (optional) */
-    .badge{
-      display:inline-block;
-      padding:4px 8px;
-      border-radius:8px;
-      font-size:12px;
-      font-weight:600;
-      background: var(--brand);
-      color:#fff;
-    }
-
     @media (max-width:800px){ .row{grid-template-columns:1fr} th.qty,td.qty{width:90px} th.price,td.price{width:120px} }
   </style>
 </head>
 <body>
   <header>
+    <a href="/dashboard.html" class="back-btn">← Zurück zum Dashboard</a>
     <h1>
       <img src="/logo.png" alt="Logo" onerror="this.style.display='none'">
       MeisterKI
-      <span class="badge">Angebot</span>
     </h1>
   </header>
 
@@ -79,7 +57,7 @@
       <button id="tab-ai">KI-Assistent</button>
     </div>
 
-    <!-- ====== Seite: Angebot ====== -->
+    <!-- ====== Angebot ====== -->
     <section id="page-offer">
       <div class="row">
         <div class="card">
@@ -138,7 +116,7 @@
       </div>
     </section>
 
-    <!-- ====== Seite: KI-Assistent ====== -->
+    <!-- ====== KI-Assistent ====== -->
     <section id="page-ai" class="hidden">
       <div class="card">
         <label>Rechnungstext / Leistungsbeschreibung</label>
@@ -259,7 +237,7 @@
       localStorage.setItem("meisterki_items", JSON.stringify(items));
     }
 
-    // >>> KORRIGIERT: PDF speichern (für PDF-Center) & mit Dateiname herunterladen
+    // >>> Speichern im /generated + Download mit Dateiname
     async function exportPDF(){
       if(!lastOffer) { return toast("Bitte erst kalkulieren."); }
       const res = await fetch("/api/offers/export-pdf", {
@@ -272,13 +250,13 @@
         return toast("PDF-Export fehlgeschlagen: " + t);
       }
       const data = await res.json();
-      const path = data?.path;      // /generated/Angebot_Firma_Kunde_YYYY-MM-DD.pdf
+      const path = data?.path;
       const filename = data?.filename || "Angebot.pdf";
       if(!path){ return toast("Kein Pfad vom Server erhalten."); }
 
       const a = document.createElement("a");
-      a.href = path;         // statische Datei aus /public/generated
-      a.download = filename; // sauberer Dateiname
+      a.href = path;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -321,7 +299,6 @@
         aiItems = Array.isArray(data.items) ? data.items : [];
         aiOut.textContent = JSON.stringify(data, null, 2);
         if(!aiItems.length){ toast("Keine Positionen erkannt."); return; }
-        // Vorschau rendern
         aiTBody.innerHTML = aiItems.map(p=>`
           <tr>
             <td>${escapeHTML(p.desc||"")}</td>
