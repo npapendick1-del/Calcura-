@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Einstellungen</title>
+<style>
+:root{--txt:#0b1220;--muted:#6b7280;--card:#f8fafc;--brand:#2563eb;}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;color:var(--txt)}
+header{padding:16px 20px;border-bottom:1px solid #eef2f7}
+main{max-width:900px;margin:0 auto;padding:20px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid #e5e7eb;border-radius:12px;padding:14px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+input,textarea{width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;font:inherit}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{padding:10px 14px;border:0;border-radius:10px;background:var(--brand);color:#fff;cursor:pointer}
+a.btn{display:inline-block;padding:10px 12px;border-radius:10px;background:#e5e7eb;color:#111827;text-decoration:none}
+</style>
+</head>
+<body>
+<header><h1>Einstellungen</h1></header>
+<main>
+  <div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn" href="/dashboard.html">← Zurück</a>
+      <button id="saveBtn">Speichern</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>Firmenname</label>
+        <input id="companyName" placeholder="Ihr Handwerksbetrieb">
+      </div>
+      <div>
+        <label>E-Mail</label>
+        <input id="email" placeholder="kontakt@example.com">
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div>
+        <label>Telefon</label>
+        <input id="phone" placeholder="01234 / 567890">
+      </div>
+      <div>
+        <label>Adresse</label>
+        <input id="address" placeholder="Straße 1, 12345 Stadt">
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div>
+        <label>MwSt (%)</label>
+        <input id="taxRate" type="number" value="19">
+      </div>
+      <div>
+        <label>Aufschlag (%)</label>
+        <input id="marginRate" type="number" value="10">
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+async function load(){
+  const res = await fetch("/api/settings");
+  const s = await res.json();
+  companyName.value = s.companyName || "";
+  email.value = s.email || "";
+  phone.value = s.phone || "";
+  address.value = s.address || "";
+  taxRate.value = s.taxRate ?? 19;
+  marginRate.value = s.marginRate ?? 10;
+}
+async function save(){
+  const body = {
+    companyName: companyName.value,
+    email: email.value,
+    phone: phone.value,
+    address: address.value,
+    taxRate: Number(taxRate.value||19),
+    marginRate: Number(marginRate.value||10)
+  };
+  const res = await fetch("/api/settings", { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) });
+  if(!res.ok){ alert("Speichern fehlgeschlagen"); return; }
+  alert("Gespeichert.");
+}
+const companyName = document.getElementById("companyName");
+const email = document.getElementById("email");
+const phone = document.getElementById("phone");
+const address = document.getElementById("address");
+const taxRate = document.getElementById("taxRate");
+const marginRate = document.getElementById("marginRate");
+document.getElementById("saveBtn").onclick = save;
+load();
+</script>
+</body>
+</html>
