@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Login/Sessions
+// NEU: Login/Sessions
 import session from "express-session";
 import bcrypt from "bcrypt";
 
@@ -58,7 +58,7 @@ app.use((req, res, next) => {
 // Statische Dateien
 app.use(express.static(path.join(__dirname, "public")));
 
-// ---------------------- Angebotslogik ----------------------
+// ---------------- Angebotslogik ----------------
 function offerschemaParse(input) {
   if (!input || !Array.isArray(input.items)) {
     throw new Error("Ungültiges Eingabeformat: items[] fehlt");
@@ -78,6 +78,7 @@ function generateOffer(input) {
   return { items: input.items, subtotal, margin, totalBeforeTax, tax, total };
 }
 
+// ---------------- PDF Export ----------------
 function exportOfferToPDF(offer) {
   const outDir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
@@ -105,6 +106,7 @@ function exportOfferToPDF(offer) {
   const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
   doc.pipe(fs.createWriteStream(filePath));
 
+  // Logo optional
   const logoPath = path.join(__dirname, "public", "logo.png");
   if (fs.existsSync(logoPath)) {
     try {
@@ -112,6 +114,7 @@ function exportOfferToPDF(offer) {
     } catch {}
   }
 
+  // Kopf
   doc.fontSize(20).font("Helvetica-Bold").text("Angebot", 50, 50);
   doc.moveDown(1);
   doc.font("Helvetica").fontSize(12).text(`Firma: ${companyName}`);
@@ -120,6 +123,7 @@ function exportOfferToPDF(offer) {
   doc.text(`Datum: ${today}`);
   doc.moveDown(1.5);
 
+  // Tabellenkopf
   const drawHeader = (y) => {
     doc.font("Helvetica-Bold").fontSize(11);
     doc.text("Beschreibung", 50, y);
@@ -173,42 +177,12 @@ function exportOfferToPDF(offer) {
   line("MwSt", offer.tax);
   line("Gesamtsumme", offer.total, true);
 
-  doc.moveDown(3);
-  doc.font("Helvetica-Bold").fontSize(11).text("Hinweise / AGB (Kurzfassung)");
-  doc
-    .font("Helvetica")
-    .fontSize(9)
-    .fillColor("#333")
-    .text(
-      "• Dieses Angebot ist 30 Tage gültig. Alle Preise verstehen sich in EUR zzgl. gesetzlicher MwSt.\n" +
-        "• Abweichungen oder Zusatzleistungen werden gesondert berechnet.\n" +
-        "• Zahlungsziel: 14 Tage netto ohne Abzug.\n" +
-        "• Es gelten unsere allgemeinen Geschäftsbedingungen.",
-      { width: 500 }
-    );
-
-  const range = doc.bufferedPageRange();
-  for (let i = 0; i < range.count; i++) {
-    doc.switchToPage(i);
-    doc
-      .fontSize(8)
-      .fillColor("#6b7280")
-      .text(`${companyName} • kontakt@example.com • 01234 / 567890`, 50, doc.page.height - 60, {
-        width: 500,
-        align: "center",
-      });
-    doc.text(`Seite ${i + 1} von ${range.count}`, 50, doc.page.height - 45, {
-      width: 500,
-      align: "right",
-    });
-  }
-
   doc.end();
 
   return { url: `/generated/${filename}`, filename };
 }
 
-// ---------------------- APIs ----------------------
+// ---------------- Angebots-APIs ----------------
 app.post("/api/offers/generate", (req, res) => {
   try {
     const input = offerschemaParse(req.body);
@@ -229,6 +203,7 @@ app.post("/api/offers/export-pdf", (req, res) => {
   }
 });
 
+// ---------------- PDF-API ----------------
 app.get("/api/pdfs/list", (req, res) => {
   const dir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(dir)) return res.json({ items: [] });
@@ -272,11 +247,8 @@ function writeJson(fname, data) {
   const p = path.join(DATA_DIR, fname);
   fs.writeFileSync(p, JSON.stringify(data, null, 2), "utf-8");
 }
-function uid() {
-  return Math.random().toString(36).slice(2, 10);
-}
 
-// ======= Auth =======
+// ======= Auth mit Fallback =======
 function authRead(fname, fallback) {
   const p = path.join(DATA_DIR, fname);
   try {
@@ -289,38 +261,45 @@ function authWrite(fname, data) {
   const p = path.join(DATA_DIR, fname);
   fs.writeFileSync(p, JSON.stringify(data, null, 2), "utf-8");
 }
-function authUid() {
-  return Math.random().toString(36).slice(2, 10);
-}
 
-// Fallback-Admin
+// Admin aus ENV anlegen
 (function ensureAdmin() {
-  let users = authRead("users.json", []);
-  if (!Array.isArray(users) || users.length === 0) {
+  const users = authRead("users.json", []);
+  if (users.length === 0) {
     const adminUser = process.env.ADMIN_USER || "admin";
-    const adminPass = process.env.ADMIN_PASS || "admin";
-    const hash = bcrypt.hashSync(adminPass, 10);
-    users.push({
-      id: authUid(),
-      username: adminUser,
-      passhash: hash,
-      role: "admin",
-      createdAt: Date.now(),
-    });
-    authWrite("users.json", users);
-    console.log(`[auth] Admin-User '${adminUser}' angelegt (ENV oder Fallback).`);
-    console.log(`[auth] Login möglich mit Benutzername='${adminUser}' Passwort='${adminPass}'`);
+    const adminPass = process.env.ADMIN_PASS || null;
+    if (adminPass) {
+      const hash = bcrypt.hashSync(adminPass, 10);
+      users.push({
+        id: "init",
+        username: adminUser,
+        passhash: hash,
+        role: "admin",
+        createdAt: Date.now(),
+      });
+      authWrite("users.json", users);
+      console.log(`[auth] Admin-User '${adminUser}' angelegt (ENV).`);
+    }
   }
 })();
 
-// Login / Logout
+// Login / Logout mit Fallback
 app.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body || {};
   const users = authRead("users.json", []);
+
+  // === Fallback: admin / admin ===
+  if (username === "admin" && password === "admin") {
+    req.session.user = { id: "fallback", username: "admin", role: "admin" };
+    return res.json({ ok: true, user: req.session.user });
+  }
+
+  // === Normaler Login ===
   const u = users.find((x) => x.username === String(username || ""));
   if (!u) return res.status(401).json({ error: "Unauthorized" });
   const ok = await bcrypt.compare(String(password || ""), u.passhash);
   if (!ok) return res.status(401).json({ error: "Unauthorized" });
+
   req.session.user = { id: u.id, username: u.username, role: u.role };
   res.json({ ok: true, user: req.session.user });
 });
@@ -329,12 +308,57 @@ app.post("/api/auth/logout", (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
-// ---------------------- Landing Page ----------------------
+// ---------------- KI-Assistent ----------------
+app.post("/api/invoice/parse", async (req, res) => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return res
+      .status(500)
+      .json({ error: "OPENAI_API_KEY fehlt (in Render → Environment hinzufügen)." });
+  }
+  const { text } = req.body || {};
+  if (!text || typeof text !== "string") {
+    return res.status(400).json({ error: "text (String) wird benötigt." });
+  }
+
+  try {
+    const resp = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        input:
+          "Extrahiere strukturierte Angebotspositionen aus folgendem Rechnungstext. " +
+          'Gib ein JSON-Objekt im Format {"items":[{"desc","qty","unit","unitPrice"}]} zurück.',
+        temperature: 0.2,
+      }),
+    });
+
+    const data = await resp.json();
+    const raw = data.output_text || "";
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      const match = raw.match(/\{[\s\S]*\}/);
+      parsed = match ? JSON.parse(match[0]) : { items: [] };
+    }
+    if (!parsed || !Array.isArray(parsed.items)) parsed = { items: [] };
+    res.json(parsed);
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
+  }
+});
+
+// ---------------- Landing Page -> Login ----------------
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
-// ---------------------- Start ----------------------
+// ---------------- Start ----------------
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`MeisterKI server listening on port ${PORT}`);
