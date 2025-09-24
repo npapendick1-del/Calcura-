@@ -1,4 +1,4 @@
-# Calcura — Vollständiges CloudDeploy-Paket
+# Calcura— Vollständiges CloudDeploy-Paket
 
 ## Schnellstart lokal (optional)
 Terminal 1:
