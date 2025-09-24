@@ -1,4 +1,4 @@
-# Calcura— Vollständiges CloudDeploy-Paket
+# MeisterKI— Vollständiges CloudDeploy-Paket
 
 ## Schnellstart lokal (optional)
 Terminal 1:
