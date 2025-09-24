@@ -5,6 +5,8 @@ import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+
+// Login/Sessions
 import session from "express-session";
 import bcrypt from "bcrypt";
 
@@ -14,7 +16,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(bodyParser.json({ limit: "10mb" }));
 
-// ====== Login / Session Setup ======
+// ====== Login / Session-Setup ======
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "supergeheim",
@@ -23,7 +25,7 @@ app.use(
   })
 );
 
-// Geschützte HTML-Seiten
+// Geschützte Seiten
 const PROTECTED_SET = new Set([
   "/dashboard.html",
   "/app.html",
@@ -53,7 +55,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Statische Dateien (inkl. PDFs)
+// Statische Dateien
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------- Angebotslogik ----------------------
@@ -63,6 +65,7 @@ function offerschemaParse(input) {
   }
   return input;
 }
+
 function generateOffer(input) {
   let subtotal = 0;
   for (const it of input.items) {
@@ -75,7 +78,7 @@ function generateOffer(input) {
   return { items: input.items, subtotal, margin, totalBeforeTax, tax, total };
 }
 
-// ---------------------- PDF-Export ----------------------
+// ---------------------- PDF Export ----------------------
 function exportOfferToPDF(offer) {
   const outDir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
@@ -175,7 +178,27 @@ function exportOfferToPDF(offer) {
   return { url: `/generated/${filename}`, filename };
 }
 
-// ---------------------- PDF-API ----------------------
+// ---------------------- PDF APIs ----------------------
+app.post("/api/offers/generate", (req, res) => {
+  try {
+    const input = offerschemaParse(req.body);
+    const offer = generateOffer(input);
+    res.json(offer);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post("/api/offers/export-pdf", (req, res) => {
+  try {
+    const offer = req.body;
+    const { url, filename } = exportOfferToPDF(offer);
+    res.json({ ok: true, path: url, filename });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.get("/api/pdfs/list", (req, res) => {
   const dir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(dir)) return res.json({ items: [] });
@@ -187,12 +210,7 @@ app.get("/api/pdfs/list", (req, res) => {
       .map((name) => {
         const full = path.join(dir, name);
         const st = fs.statSync(full);
-        return {
-          name,
-          url: `/generated/${name}`,
-          size: st.size,
-          mtime: st.mtimeMs,
-        };
+        return { name, url: `/generated/${name}`, size: st.size, mtime: st.mtimeMs };
       })
       .sort((a, b) => b.mtime - a.mtime);
 
@@ -202,7 +220,7 @@ app.get("/api/pdfs/list", (req, res) => {
   }
 });
 
-// ======= Mini JSON Store =======
+// ---------------------- JSON Store ----------------------
 const DATA_DIR = path.join(__dirname, "data");
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -223,59 +241,7 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-// ======= Einstellungen =======
-app.get("/api/settings", (req, res) => {
-  const s = readJson("settings.json", {
-    companyName: "",
-    email: "",
-    phone: "",
-    address: "",
-    taxRate: 19,
-    marginRate: 10,
-  });
-  res.json(s);
-});
-app.put("/api/settings", (req, res) => {
-  const s = req.body || {};
-  const merged = {
-    companyName: String(s.companyName || ""),
-    email: String(s.email || ""),
-    phone: String(s.phone || ""),
-    address: String(s.address || ""),
-    taxRate: Number(s.taxRate ?? 19),
-    marginRate: Number(s.marginRate ?? 10),
-  };
-  writeJson("settings.json", merged);
-  res.json({ ok: true });
-});
-
-// ======= Kunden =======
-app.get("/api/customers", (req, res) => {
-  res.json({ items: readJson("customers.json", []) });
-});
-app.post("/api/customers", (req, res) => {
-  const list = readJson("customers.json", []);
-  const c = req.body || {};
-  const item = { id: uid(), ...c, createdAt: Date.now() };
-  list.push(item);
-  writeJson("customers.json", list);
-  res.json(item);
-});
-
-// ======= Projekte =======
-app.get("/api/projects", (req, res) => {
-  res.json({ items: readJson("projects.json", []) });
-});
-app.post("/api/projects", (req, res) => {
-  const list = readJson("projects.json", []);
-  const p = req.body || {};
-  const item = { id: uid(), ...p, createdAt: Date.now() };
-  list.push(item);
-  writeJson("projects.json", list);
-  res.json(item);
-});
-
-// ======= Auth: Nutzerverwaltung =======
+// ---------------------- Auth ----------------------
 function authRead(fname, fallback) {
   const p = path.join(DATA_DIR, fname);
   try {
@@ -288,28 +254,32 @@ function authWrite(fname, data) {
   const p = path.join(DATA_DIR, fname);
   fs.writeFileSync(p, JSON.stringify(data, null, 2), "utf-8");
 }
+function authUid() {
+  return Math.random().toString(36).slice(2, 10);
+}
 
-// Fallback-Admin
-(function ensureAdminFallback() {
-  const usersFile = path.join(DATA_DIR, "users.json");
-  let users = [];
-  try {
-    if (fs.existsSync(usersFile)) {
-      users = JSON.parse(fs.readFileSync(usersFile, "utf-8"));
-    }
-  } catch {
-    users = [];
-  }
+// Admin anlegen
+(function ensureAdmin() {
+  const users = authRead("users.json", []);
   if (users.length === 0) {
     const adminUser = process.env.ADMIN_USER || "admin";
     const adminPass = process.env.ADMIN_PASS || "admin";
     const hash = bcrypt.hashSync(adminPass, 10);
-    users.push({ id: uid(), username: adminUser, passhash: hash, role: "admin", createdAt: Date.now() });
-    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2), "utf-8");
-    console.log(`[auth] Fallback-Admin '${adminUser}' angelegt (Passwort: '${adminPass}')`);
+
+    users.push({
+      id: authUid(),
+      username: adminUser,
+      passhash: hash,
+      role: "admin",
+      createdAt: Date.now(),
+    });
+    authWrite("users.json", users);
+
+    console.log(`[auth] Admin-User '${adminUser}' angelegt (Passwort: '${adminPass}')`);
   }
 })();
 
+// Login / Logout
 app.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body || {};
   const users = authRead("users.json", []);
@@ -321,13 +291,15 @@ app.post("/api/auth/login", async (req, res) => {
   res.json({ ok: true, user: req.session.user });
 });
 
+app.post("/api/auth/logout", (req, res) => {
+  req.session.destroy(() => res.json({ ok: true }));
+});
+
 // ---------------------- KI-Assistent ----------------------
 app.post("/api/invoice/parse", async (req, res) => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return res
-      .status(500)
-      .json({ error: "OPENAI_API_KEY fehlt (in Render → Environment hinzufügen)." });
+    return res.status(500).json({ error: "OPENAI_API_KEY fehlt." });
   }
   const { text } = req.body || {};
   if (!text || typeof text !== "string") {
@@ -337,12 +309,16 @@ app.post("/api/invoice/parse", async (req, res) => {
   try {
     const resp = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         input:
           "Extrahiere strukturierte Angebotspositionen aus folgendem Rechnungstext. " +
-          'Gib ein JSON-Objekt im Format {"items":[{"desc","qty","unit","unitPrice"}]} zurück.\n\n' +
+          'Gib ein JSON-Objekt im Format {"items":[{"desc","qty","unit","unitPrice"}]} zurück. ' +
+          "Zahlen als number; wenn unsicher, vorsichtig schätzen.\n\n" +
           text,
         temperature: 0.2,
       }),
