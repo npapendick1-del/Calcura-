@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "id": "admin-1",
+    "username": "admin",
+    "passhash": "$2b$10$XUiG9GRq8F9khuQHc7mMGeS7W5u8tIYgIX/9e8hB9QPLcdpWBGs0e",
+    "role": "admin",
+    "createdAt": 1727170000000
+  }
+]
+
