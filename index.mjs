@@ -5,8 +5,6 @@ import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-
-// NEU: Login/Sessions
 import session from "express-session";
 import bcrypt from "bcrypt";
 
@@ -16,7 +14,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(bodyParser.json({ limit: "10mb" }));
 
-// ====== Login / Session-Setup ======
+// ====== Login / Session Setup ======
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "supergeheim",
@@ -25,7 +23,7 @@ app.use(
   })
 );
 
-// Geschützte Seiten
+// Geschützte HTML-Seiten
 const PROTECTED_SET = new Set([
   "/dashboard.html",
   "/app.html",
@@ -55,17 +53,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// Statische Dateien
+// Statische Dateien (inkl. PDFs)
 app.use(express.static(path.join(__dirname, "public")));
 
-// ---------------- Angebotslogik ----------------
+// ---------------------- Angebotslogik ----------------------
 function offerschemaParse(input) {
   if (!input || !Array.isArray(input.items)) {
     throw new Error("Ungültiges Eingabeformat: items[] fehlt");
   }
   return input;
 }
-
 function generateOffer(input) {
   let subtotal = 0;
   for (const it of input.items) {
@@ -78,7 +75,7 @@ function generateOffer(input) {
   return { items: input.items, subtotal, margin, totalBeforeTax, tax, total };
 }
 
-// ---------------- PDF Export ----------------
+// ---------------------- PDF-Export ----------------------
 function exportOfferToPDF(offer) {
   const outDir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
@@ -106,7 +103,6 @@ function exportOfferToPDF(offer) {
   const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
   doc.pipe(fs.createWriteStream(filePath));
 
-  // Logo optional
   const logoPath = path.join(__dirname, "public", "logo.png");
   if (fs.existsSync(logoPath)) {
     try {
@@ -114,7 +110,6 @@ function exportOfferToPDF(offer) {
     } catch {}
   }
 
-  // Kopf
   doc.fontSize(20).font("Helvetica-Bold").text("Angebot", 50, 50);
   doc.moveDown(1);
   doc.font("Helvetica").fontSize(12).text(`Firma: ${companyName}`);
@@ -123,7 +118,6 @@ function exportOfferToPDF(offer) {
   doc.text(`Datum: ${today}`);
   doc.moveDown(1.5);
 
-  // Tabellenkopf
   const drawHeader = (y) => {
     doc.font("Helvetica-Bold").fontSize(11);
     doc.text("Beschreibung", 50, y);
@@ -178,32 +172,10 @@ function exportOfferToPDF(offer) {
   line("Gesamtsumme", offer.total, true);
 
   doc.end();
-
   return { url: `/generated/${filename}`, filename };
 }
 
-// ---------------- Angebots-APIs ----------------
-app.post("/api/offers/generate", (req, res) => {
-  try {
-    const input = offerschemaParse(req.body);
-    const offer = generateOffer(input);
-    res.json(offer);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
-
-app.post("/api/offers/export-pdf", (req, res) => {
-  try {
-    const offer = req.body;
-    const { url, filename } = exportOfferToPDF(offer);
-    res.json({ ok: true, path: url, filename });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
-
-// ---------------- PDF-API ----------------
+// ---------------------- PDF-API ----------------------
 app.get("/api/pdfs/list", (req, res) => {
   const dir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(dir)) return res.json({ items: [] });
@@ -247,8 +219,63 @@ function writeJson(fname, data) {
   const p = path.join(DATA_DIR, fname);
   fs.writeFileSync(p, JSON.stringify(data, null, 2), "utf-8");
 }
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
 
-// ======= Auth mit Fallback =======
+// ======= Einstellungen =======
+app.get("/api/settings", (req, res) => {
+  const s = readJson("settings.json", {
+    companyName: "",
+    email: "",
+    phone: "",
+    address: "",
+    taxRate: 19,
+    marginRate: 10,
+  });
+  res.json(s);
+});
+app.put("/api/settings", (req, res) => {
+  const s = req.body || {};
+  const merged = {
+    companyName: String(s.companyName || ""),
+    email: String(s.email || ""),
+    phone: String(s.phone || ""),
+    address: String(s.address || ""),
+    taxRate: Number(s.taxRate ?? 19),
+    marginRate: Number(s.marginRate ?? 10),
+  };
+  writeJson("settings.json", merged);
+  res.json({ ok: true });
+});
+
+// ======= Kunden =======
+app.get("/api/customers", (req, res) => {
+  res.json({ items: readJson("customers.json", []) });
+});
+app.post("/api/customers", (req, res) => {
+  const list = readJson("customers.json", []);
+  const c = req.body || {};
+  const item = { id: uid(), ...c, createdAt: Date.now() };
+  list.push(item);
+  writeJson("customers.json", list);
+  res.json(item);
+});
+
+// ======= Projekte =======
+app.get("/api/projects", (req, res) => {
+  res.json({ items: readJson("projects.json", []) });
+});
+app.post("/api/projects", (req, res) => {
+  const list = readJson("projects.json", []);
+  const p = req.body || {};
+  const item = { id: uid(), ...p, createdAt: Date.now() };
+  list.push(item);
+  writeJson("projects.json", list);
+  res.json(item);
+});
+
+// ======= Auth: Nutzerverwaltung =======
 function authRead(fname, fallback) {
   const p = path.join(DATA_DIR, fname);
   try {
@@ -262,53 +289,39 @@ function authWrite(fname, data) {
   fs.writeFileSync(p, JSON.stringify(data, null, 2), "utf-8");
 }
 
-// Admin aus ENV anlegen
-(function ensureAdmin() {
-  const users = authRead("users.json", []);
+// Fallback-Admin
+(function ensureAdminFallback() {
+  const usersFile = path.join(DATA_DIR, "users.json");
+  let users = [];
+  try {
+    if (fs.existsSync(usersFile)) {
+      users = JSON.parse(fs.readFileSync(usersFile, "utf-8"));
+    }
+  } catch {
+    users = [];
+  }
   if (users.length === 0) {
     const adminUser = process.env.ADMIN_USER || "admin";
-    const adminPass = process.env.ADMIN_PASS || null;
-    if (adminPass) {
-      const hash = bcrypt.hashSync(adminPass, 10);
-      users.push({
-        id: "init",
-        username: adminUser,
-        passhash: hash,
-        role: "admin",
-        createdAt: Date.now(),
-      });
-      authWrite("users.json", users);
-      console.log(`[auth] Admin-User '${adminUser}' angelegt (ENV).`);
-    }
+    const adminPass = process.env.ADMIN_PASS || "admin";
+    const hash = bcrypt.hashSync(adminPass, 10);
+    users.push({ id: uid(), username: adminUser, passhash: hash, role: "admin", createdAt: Date.now() });
+    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2), "utf-8");
+    console.log(`[auth] Fallback-Admin '${adminUser}' angelegt (Passwort: '${adminPass}')`);
   }
 })();
 
-// Login / Logout mit Fallback
 app.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body || {};
   const users = authRead("users.json", []);
-
-  // === Fallback: admin / admin ===
-  if (username === "admin" && password === "admin") {
-    req.session.user = { id: "fallback", username: "admin", role: "admin" };
-    return res.json({ ok: true, user: req.session.user });
-  }
-
-  // === Normaler Login ===
   const u = users.find((x) => x.username === String(username || ""));
   if (!u) return res.status(401).json({ error: "Unauthorized" });
   const ok = await bcrypt.compare(String(password || ""), u.passhash);
   if (!ok) return res.status(401).json({ error: "Unauthorized" });
-
   req.session.user = { id: u.id, username: u.username, role: u.role };
   res.json({ ok: true, user: req.session.user });
 });
 
-app.post("/api/auth/logout", (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }));
-});
-
-// ---------------- KI-Assistent ----------------
+// ---------------------- KI-Assistent ----------------------
 app.post("/api/invoice/parse", async (req, res) => {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -324,18 +337,21 @@ app.post("/api/invoice/parse", async (req, res) => {
   try {
     const resp = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         input:
           "Extrahiere strukturierte Angebotspositionen aus folgendem Rechnungstext. " +
-          'Gib ein JSON-Objekt im Format {"items":[{"desc","qty","unit","unitPrice"}]} zurück.',
+          'Gib ein JSON-Objekt im Format {"items":[{"desc","qty","unit","unitPrice"}]} zurück.\n\n' +
+          text,
         temperature: 0.2,
       }),
     });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      return res.status(resp.status).json({ error: errText });
+    }
 
     const data = await resp.json();
     const raw = data.output_text || "";
@@ -353,12 +369,12 @@ app.post("/api/invoice/parse", async (req, res) => {
   }
 });
 
-// ---------------- Landing Page -> Login ----------------
+// ---------------------- Landing Page ----------------------
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
 
-// ---------------- Start ----------------
+// ---------------------- Start ----------------------
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`MeisterKI server listening on port ${PORT}`);
