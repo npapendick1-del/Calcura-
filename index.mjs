@@ -6,7 +6,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// NEU: Login/Sessions
+// Login/Sessions
 import session from "express-session";
 import bcrypt from "bcrypt";
 
@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(bodyParser.json({ limit: "10mb" }));
 
-// ====== Login / Session-Setup (muss vor Schutz & static kommen) ======
+// ====== Login / Session-Setup ======
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "supergeheim",
@@ -25,7 +25,7 @@ app.use(
   })
 );
 
-// Pfade, die nur eingeloggt erreichbar sein sollen
+// Geschützte Seiten
 const PROTECTED_SET = new Set([
   "/dashboard.html",
   "/app.html",
@@ -37,19 +37,17 @@ const PROTECTED_SET = new Set([
   "/users.html",
 ]);
 
-// Schutz-Middleware (läuft vor express.static)
+// Schutz-Middleware
 app.use((req, res, next) => {
   const p = req.path;
-  // frei zugänglich:
   if (
     p === "/login.html" ||
     p.startsWith("/api/auth/") ||
-    p.startsWith("/generated/") || // gespeicherte PDFs
+    p.startsWith("/generated/") ||
     p === "/logo.png"
   ) {
     return next();
   }
-  // HTML-Seiten schützen
   if (PROTECTED_SET.has(p)) {
     if (req.session?.user) return next();
     return res.redirect("/login.html");
@@ -57,10 +55,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Statische Dateien (HTML/CSS/JS, inkl. gespeicherten PDFs)
-app.use(express.static(path.join(__dirname, "public"))); // /public: app.html, dashboard.html, generated PDFs
+// Statische Dateien
+app.use(express.static(path.join(__dirname, "public")));
 
-// ---------------------- Angebotslogik (unverändert) ----------------------
+// ---------------------- Angebotslogik ----------------------
 function offerschemaParse(input) {
   if (!input || !Array.isArray(input.items)) {
     throw new Error("Ungültiges Eingabeformat: items[] fehlt");
@@ -80,7 +78,6 @@ function generateOffer(input) {
   return { items: input.items, subtotal, margin, totalBeforeTax, tax, total };
 }
 
-// ---------------------- 2.1 Export-Funktion mit schönem Dateinamen ----------------------
 function exportOfferToPDF(offer) {
   const outDir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
@@ -108,7 +105,6 @@ function exportOfferToPDF(offer) {
   const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
   doc.pipe(fs.createWriteStream(filePath));
 
-  // Optionales Logo
   const logoPath = path.join(__dirname, "public", "logo.png");
   if (fs.existsSync(logoPath)) {
     try {
@@ -116,7 +112,6 @@ function exportOfferToPDF(offer) {
     } catch {}
   }
 
-  // Kopf
   doc.fontSize(20).font("Helvetica-Bold").text("Angebot", 50, 50);
   doc.moveDown(1);
   doc.font("Helvetica").fontSize(12).text(`Firma: ${companyName}`);
@@ -125,7 +120,6 @@ function exportOfferToPDF(offer) {
   doc.text(`Datum: ${today}`);
   doc.moveDown(1.5);
 
-  // Tabellenkopf
   const drawHeader = (y) => {
     doc.font("Helvetica-Bold").fontSize(11);
     doc.text("Beschreibung", 50, y);
@@ -136,7 +130,6 @@ function exportOfferToPDF(offer) {
     doc.moveTo(50, y + 15).lineTo(550, y + 15).stroke("#000");
   };
 
-  // Positionen
   let y = doc.y + 20;
   drawHeader(y);
   y += 25;
@@ -164,7 +157,6 @@ function exportOfferToPDF(offer) {
     y += 22;
   });
 
-  // Summenbox
   const boxY = y + 20;
   doc.rect(300, boxY, 250, 100).fill("#f8fafc").stroke("#e5e7eb");
   doc.fillColor("#000").font("Helvetica").fontSize(10);
@@ -181,7 +173,6 @@ function exportOfferToPDF(offer) {
   line("MwSt", offer.tax);
   line("Gesamtsumme", offer.total, true);
 
-  // Hinweise / AGB
   doc.moveDown(3);
   doc.font("Helvetica-Bold").fontSize(11).text("Hinweise / AGB (Kurzfassung)");
   doc
@@ -196,7 +187,6 @@ function exportOfferToPDF(offer) {
       { width: 500 }
     );
 
-  // Footer & Seitenzahlen
   const range = doc.bufferedPageRange();
   for (let i = 0; i < range.count; i++) {
     doc.switchToPage(i);
@@ -215,11 +205,10 @@ function exportOfferToPDF(offer) {
 
   doc.end();
 
-  // Rückgabe für API-Use
   return { url: `/generated/${filename}`, filename };
 }
 
-// ---------------------- Angebots-APIs ----------------------
+// ---------------------- APIs ----------------------
 app.post("/api/offers/generate", (req, res) => {
   try {
     const input = offerschemaParse(req.body);
@@ -230,7 +219,6 @@ app.post("/api/offers/generate", (req, res) => {
   }
 });
 
-// ---------------------- 2.2 Export-Endpoints aktualisiert ----------------------
 app.post("/api/offers/export-pdf", (req, res) => {
   try {
     const offer = req.body;
@@ -241,20 +229,6 @@ app.post("/api/offers/export-pdf", (req, res) => {
   }
 });
 
-app.post("/api/offers/export-pdf/download", (req, res) => {
-  try {
-    const offer = req.body;
-    const { url, filename } = exportOfferToPDF(offer);
-    const absPath = path.join(__dirname, "public", url.replace(/^\//, ""));
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    fs.createReadStream(absPath).pipe(res);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
-
-// ---------------------- 2.3 PDF-API: Liste & Löschen ----------------------
 app.get("/api/pdfs/list", (req, res) => {
   const dir = path.join(__dirname, "public", "generated");
   if (!fs.existsSync(dir)) return res.json({ items: [] });
@@ -281,19 +255,7 @@ app.get("/api/pdfs/list", (req, res) => {
   }
 });
 
-app.delete("/api/pdfs", (req, res) => {
-  const name = String(req.query.name || "");
-  if (!name || name.includes("..") || name.includes("/") || name.includes("\\")) {
-    return res.status(400).json({ error: "Ungültiger Dateiname" });
-  }
-  const p = path.join(__dirname, "public", "generated", name);
-  fs.unlink(p, (err) => {
-    if (err) return res.status(404).json({ error: "Datei nicht gefunden" });
-    res.json({ ok: true });
-  });
-});
-
-// ======= Mini JSON Store (./data/*.json) =======
+// ======= Mini JSON Store =======
 const DATA_DIR = path.join(__dirname, "data");
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -314,130 +276,7 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-// ======= Einstellungen =======
-app.get("/api/settings", (req, res) => {
-  const s = readJson("settings.json", {
-    companyName: "",
-    email: "",
-    phone: "",
-    address: "",
-    taxRate: 19,
-    marginRate: 10,
-  });
-  res.json(s);
-});
-app.put("/api/settings", (req, res) => {
-  const s = req.body || {};
-  const merged = {
-    companyName: String(s.companyName || ""),
-    email: String(s.email || ""),
-    phone: String(s.phone || ""),
-    address: String(s.address || ""),
-    taxRate: Number(s.taxRate ?? 19),
-    marginRate: Number(s.marginRate ?? 10),
-  };
-  writeJson("settings.json", merged);
-  res.json({ ok: true });
-});
-
-// ======= Kunden =======
-app.get("/api/customers", (req, res) => {
-  const list = readJson("customers.json", []);
-  res.json({ items: list });
-});
-app.post("/api/customers", (req, res) => {
-  const list = readJson("customers.json", []);
-  const c = req.body || {};
-  const item = {
-    id: uid(),
-    name: String(c.name || ""),
-    email: String(c.email || ""),
-    phone: String(c.phone || ""),
-    street: String(c.street || ""),
-    city: String(c.city || ""),
-    note: String(c.note || ""),
-    createdAt: Date.now(),
-  };
-  list.push(item);
-  writeJson("customers.json", list);
-  res.json(item);
-});
-app.put("/api/customers/:id", (req, res) => {
-  const id = req.params.id;
-  const list = readJson("customers.json", []);
-  const idx = list.findIndex((x) => x.id === id);
-  if (idx < 0) return res.status(404).json({ error: "Not found" });
-  const c = req.body || {};
-  list[idx] = {
-    ...list[idx],
-    name: String(c.name ?? list[idx].name),
-    email: String(c.email ?? list[idx].email),
-    phone: String(c.phone ?? list[idx].phone),
-    street: String(c.street ?? list[idx].street),
-    city: String(c.city ?? list[idx].city),
-    note: String(c.note ?? list[idx].note),
-  };
-  writeJson("customers.json", list);
-  res.json({ ok: true });
-});
-app.delete("/api/customers/:id", (req, res) => {
-  const id = req.params.id;
-  const list = readJson("customers.json", []);
-  const next = list.filter((x) => x.id !== id);
-  if (next.length === list.length) return res.status(404).json({ error: "Not found" });
-  writeJson("customers.json", next);
-  res.json({ ok: true });
-});
-
-// ======= Projekte =======
-app.get("/api/projects", (req, res) => {
-  const list = readJson("projects.json", []);
-  res.json({ items: list });
-});
-app.post("/api/projects", (req, res) => {
-  const list = readJson("projects.json", []);
-  const p = req.body || {};
-  const item = {
-    id: uid(),
-    title: String(p.title || ""),
-    customerId: String(p.customerId || ""),
-    status: String(p.status || "offen"), // offen | laufend | abgeschlossen
-    budget: Number(p.budget || 0),
-    note: String(p.note || ""),
-    createdAt: Date.now(),
-  };
-  list.push(item);
-  writeJson("projects.json", list);
-  res.json(item);
-});
-app.put("/api/projects/:id", (req, res) => {
-  const id = req.params.id;
-  const list = readJson("projects.json", []);
-  const idx = list.findIndex((x) => x.id === id);
-  if (idx < 0) return res.status(404).json({ error: "Not found" });
-  const p = req.body || {};
-  list[idx] = {
-    ...list[idx],
-    title: String(p.title ?? list[idx].title),
-    customerId: String(p.customerId ?? list[idx].customerId),
-    status: String(p.status ?? list[idx].status),
-    budget: Number(p.budget ?? list[idx].budget),
-    note: String(p.note ?? list[idx].note),
-  };
-  writeJson("projects.json", list);
-  res.json({ ok: true });
-});
-app.delete("/api/projects/:id", (req, res) => {
-  const id = req.params.id;
-  const list = readJson("projects.json", []);
-  const next = list.filter((x) => x.id !== id);
-  if (next.length === list.length) return res.status(404).json({ error: "Not found" });
-  writeJson("projects.json", next);
-  res.json({ ok: true });
-});
-
-// ======= Auth: mehrere Nutzer (Sessions + users.json) =======
-// Eigene helpers für Auth (nutzen selben /data Ordner)
+// ======= Auth =======
 function authRead(fname, fallback) {
   const p = path.join(DATA_DIR, fname);
   try {
@@ -454,28 +293,23 @@ function authUid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-// Ersten Admin über ENV anlegen (einmalig)
+// Fallback-Admin
 (function ensureAdmin() {
-  const users = authRead("users.json", []);
-  if (users.length === 0) {
+  let users = authRead("users.json", []);
+  if (!Array.isArray(users) || users.length === 0) {
     const adminUser = process.env.ADMIN_USER || "admin";
-    const adminPass = process.env.ADMIN_PASS || null;
-    if (adminPass) {
-      const hash = bcrypt.hashSync(adminPass, 10);
-      users.push({
-        id: authUid(),
-        username: adminUser,
-        passhash: hash,
-        role: "admin",
-        createdAt: Date.now(),
-      });
-      authWrite("users.json", users);
-      console.log(`[auth] Admin-User '${adminUser}' angelegt (ENV).`);
-    } else {
-      console.warn(
-        "[auth] Kein ADMIN_PASS gesetzt. Setze ENV ADMIN_PASS, um initialen Admin zu erzeugen."
-      );
-    }
+    const adminPass = process.env.ADMIN_PASS || "admin";
+    const hash = bcrypt.hashSync(adminPass, 10);
+    users.push({
+      id: authUid(),
+      username: adminUser,
+      passhash: hash,
+      role: "admin",
+      createdAt: Date.now(),
+    });
+    authWrite("users.json", users);
+    console.log(`[auth] Admin-User '${adminUser}' angelegt (ENV oder Fallback).`);
+    console.log(`[auth] Login möglich mit Benutzername='${adminUser}' Passwort='${adminPass}'`);
   }
 })();
 
@@ -490,115 +324,12 @@ app.post("/api/auth/login", async (req, res) => {
   req.session.user = { id: u.id, username: u.username, role: u.role };
   res.json({ ok: true, user: req.session.user });
 });
+
 app.post("/api/auth/logout", (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
-// Nur Admin
-function requireAdmin(req, res, next) {
-  if (req.session?.user?.role === "admin") return next();
-  return res.status(403).json({ error: "Forbidden" });
-}
-app.get("/api/users", (req, res, next) => {
-  if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
-  return requireAdmin(req, res, () => {
-    const users = authRead("users.json", []).map((u) => ({
-      id: u.id,
-      username: u.username,
-      role: u.role,
-      createdAt: u.createdAt,
-    }));
-    res.json({ items: users });
-  });
-});
-app.post("/api/users", (req, res, next) => {
-  if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
-  return requireAdmin(req, res, async () => {
-    const { username, password, role } = req.body || {};
-    if (!username || !password)
-      return res.status(400).json({ error: "username/password erforderlich" });
-    const users = authRead("users.json", []);
-    if (users.some((u) => u.username === username))
-      return res.status(409).json({ error: "Benutzer existiert" });
-    const hash = await bcrypt.hash(String(password), 10);
-    const item = {
-      id: authUid(),
-      username,
-      passhash: hash,
-      role: role === "admin" ? "admin" : "user",
-      createdAt: Date.now(),
-    };
-    users.push(item);
-    authWrite("users.json", users);
-    res.json({ id: item.id, username: item.username, role: item.role });
-  });
-});
-app.delete("/api/users/:id", (req, res, next) => {
-  if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
-  return requireAdmin(req, res, () => {
-    const { id } = req.params;
-    const users = authRead("users.json", []);
-    const nextUsers = users.filter((u) => u.id !== id);
-    if (nextUsers.length === users.length) return res.status(404).json({ error: "Not found" });
-    authWrite("users.json", nextUsers);
-    if (req.session?.user?.id === id) req.session.destroy(() => {});
-    res.json({ ok: true });
-  });
-});
-
-// ---------------------- KI-Assistent ----------------------
-app.post("/api/invoice/parse", async (req, res) => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return res
-      .status(500)
-      .json({ error: "OPENAI_API_KEY fehlt (in Render → Environment hinzufügen)." });
-  }
-  const { text } = req.body || {};
-  if (!text || typeof text !== "string") {
-    return res.status(400).json({ error: "text (String) wird benötigt." });
-  }
-
-  try {
-    const resp = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        input:
-          "Extrahiere strukturierte Angebotspositionen aus folgendem Rechnungstext. " +
-          'Gib ein JSON-Objekt im Format {"items":[{"desc","qty","unit","unitPrice"}]} zurück. ' +
-          "Zahlen als number; wenn unsicher, vorsichtig schätzen.\n\n" +
-          text,
-        temperature: 0.2,
-      }),
-    });
-
-    if (!resp.ok) {
-      const errText = await resp.text();
-      return res.status(resp.status).json({ error: errText });
-    }
-
-    const data = await resp.json();
-    const raw = data.output_text || "";
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      const match = raw.match(/\{[\s\S]*\}/);
-      parsed = match ? JSON.parse(match[0]) : { items: [] };
-    }
-    if (!parsed || !Array.isArray(parsed.items)) parsed = { items: [] };
-    res.json(parsed);
-  } catch (e) {
-    res.status(500).json({ error: String(e?.message || e) });
-  }
-});
-
-// ---------------------- Landing Page -> Dashboard ----------------------
+// ---------------------- Landing Page ----------------------
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
