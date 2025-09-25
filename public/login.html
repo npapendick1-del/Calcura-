@@ -1,201 +1,106 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Login</title>
-  <meta name="color-scheme" content="light dark">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Login – MeisterKI</title>
   <style>
-    :root{
-      --bg1:#0f1729; --bg2:#1b2340; --brand:#2563eb; --brand-2:#60a5fa;
-      --card:#ffffff18; --line:#ffffff30; --txt:#e8eefc; --muted:#9fb0ce;
-      --ok:#22c55e; --err:#ef4444;
+    body {
+      font-family: system-ui, sans-serif;
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial;
-      color:var(--txt);
-      background: radial-gradient(1200px 800px at 20% -10%, #1f2a4d55 0, #0000 60%),
-                  radial-gradient(1000px 600px at 110% 20%, #1b3a7a55 0, #0000 55%),
-                  linear-gradient(135deg,var(--bg1),var(--bg2));
-      overflow:hidden;
+    .card {
+      background: #1e293b;
+      padding: 2rem;
+      border-radius: 16px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+      width: 100%;
+      max-width: 360px;
     }
-
-    /* Soft animated blobs */
-    .blob{position:absolute; filter:blur(40px); opacity:.35; will-change:transform}
-    .b1{width:28rem; height:28rem; top:-8rem; left:-6rem; background:#3b82f6}
-    .b2{width:30rem; height:30rem; bottom:-10rem; right:-8rem; background:#22d3ee}
-    @keyframes floaty { from{transform:translateY(0)} 50%{transform:translateY(-18px)} to{transform:translateY(0)} }
-    .b1,.b2{animation:floaty 8s ease-in-out infinite}
-
-    /* Center */
-    .wrap{position:relative; height:100%; display:grid; place-items:center; padding:24px}
-    .card{
-      width:min(440px, 92vw);
-      background:linear-gradient(180deg,#ffffff1f,#ffffff10);
-      border:1px solid var(--line);
-      border-radius:20px;
-      backdrop-filter: blur(14px) saturate(120%);
-      box-shadow: 0 30px 80px #0008, inset 0 1px 0 #ffffff33;
-      padding:28px 26px;
-      transform: translateY(6px);
-      animation: pop .6s cubic-bezier(.16,.84,.44,1);
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+      text-align: center;
     }
-    @keyframes pop{from{opacity:0; transform:translateY(16px) scale(.98)} to{opacity:1; transform:translateY(6px) scale(1)}}
-
-    header{display:flex; align-items:center; gap:12px; margin-bottom:8px}
-    header img{width:28px; height:28px; object-fit:contain; border-radius:6px}
-    header h1{font-size:20px; margin:0}
-    .sub{color:var(--muted); font-size:13px; margin:0 0 16px}
-
-    label{display:block; font-size:12px; color:var(--muted); margin:14px 0 6px}
-    input{
-      width:100%; padding:12px 14px; border-radius:12px; border:1px solid #ffffff2e;
-      background:#0b122533; color:var(--txt); outline:none;
-      transition:border-color .15s, box-shadow .15s, background .2s;
+    label {
+      display: block;
+      margin-top: 1rem;
+      font-size: 0.9rem;
     }
-    input::placeholder{color:#c9d3ea66}
-    input:focus{border-color:#87b5ff; box-shadow:0 0 0 4px #2563eb33; background:#0b122555}
-
-    .row{display:flex; gap:10px}
-    .row>*{flex:1}
-
-    .actions{display:flex; align-items:center; gap:10px; margin-top:16px}
-    .btn{
-      appearance:none; border:0; border-radius:12px; cursor:pointer;
-      padding:12px 16px; min-width:120px; font-weight:600; letter-spacing:.2px;
-      color:#fff; background:linear-gradient(135deg,var(--brand),var(--brand-2));
-      box-shadow: 0 12px 30px #1b49ff55; transition: transform .07s ease, filter .2s ease;
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-top: 0.3rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
     }
-    .btn:hover{filter:saturate(110%) brightness(1.06)}
-    .btn:active{transform: translateY(1px)}
-    .ghost{background:#ffffff1a; border:1px solid #ffffff30; color:#e4ecff}
-    .spacer{flex:1}
-    .hint{font-size:12px; color:var(--muted)}
-    .hint a{color:#9ec5ff; text-decoration:none}
-    .hint a:hover{text-decoration:underline}
-
-    .msg{margin-top:12px; font-size:14px; padding:10px 12px; border-radius:10px; display:none}
-    .msg.err{display:block; background:#ef44441a; border:1px solid #ef4444aa; color:#fecaca}
-    .msg.ok{display:block; background:#22c55e1a; border:1px solid #22c55eaa; color:#bbf7d0}
-
-    .footer{margin-top:16px; display:flex; align-items:center; gap:10px; justify-content:space-between}
-    .checkbox{display:flex; align-items:center; gap:8px; font-size:13px; color:#cfe1ff}
-
-    .toggle{
-      position:absolute; right:12px; top:50%; transform:translateY(-50%);
-      border:0; background:#ffffff17; color:#cfe1ff; border-radius:8px; padding:6px 8px; cursor:pointer;
+    button {
+      margin-top: 1.5rem;
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      background: #3b82f6;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
     }
-    .field{position:relative}
-    .brand{position:absolute; inset:0; pointer-events:none; border-radius:20px;
-      mask: radial-gradient(180px 60px at 20% -30px,#fff,transparent 60%),
-            radial-gradient(160px 60px at 90% 0,#fff,transparent 60%);
-      background: linear-gradient(90deg, #ffffff2a, #ffffff05 40%);
+    button:hover {
+      background: #2563eb;
+    }
+    .error {
+      margin-top: 1rem;
+      padding: 0.8rem;
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-radius: 8px;
+      display: none;
+      text-align: center;
+      font-size: 0.9rem;
     }
   </style>
 </head>
 <body>
-  <div class="blob b1"></div>
-  <div class="blob b2"></div>
-
-  <div class="wrap">
-    <div class="card" role="dialog" aria-labelledby="title">
-      <div class="brand"></div>
-
-      <header>
-        <img src="/logo.png" alt="" onerror="this.style.display='none'">
-        <h1 id="title">Anmelden</h1>
-      </header>
-      <p class="sub">Bitte melde dich mit deinem Konto an, um das Dashboard zu öffnen.</p>
-
-      <form id="form" autocomplete="on">
-        <label for="user">Benutzername</label>
-        <input id="user" name="user" inputmode="text" placeholder="z. B. admin" required />
-
-        <label for="pass">Passwort</label>
-        <div class="field">
-          <input id="pass" name="pass" type="password" placeholder="••••••••" required />
-          <button class="toggle" type="button" aria-label="Passwort anzeigen" id="togglePass">👁</button>
-        </div>
-
-        <div class="actions">
-          <div class="checkbox">
-            <input id="remember" type="checkbox" />
-            <label for="remember">Angemeldet bleiben</label>
-          </div>
-          <span class="spacer"></span>
-          <button class="btn" id="submitBtn" type="submit">Einloggen</button>
-          <button class="btn ghost" type="button" onclick="window.location.href='/'">Zurück</button>
-        </div>
-
-        <div id="msg" class="msg"></div>
-
-        <div class="footer">
-          <span class="hint">Probleme? <a href="mailto:support@example.com">support@example.com</a></span>
-          <span class="hint">Sicher mit Sessions geschützt</span>
-        </div>
-      </form>
-    </div>
+  <div class="card">
+    <h1>Anmelden</h1>
+    <form id="loginForm">
+      <label>Benutzername
+        <input type="text" id="username" value="admin" required>
+      </label>
+      <label>Passwort
+        <input type="password" id="password" value="Test123!" required>
+      </label>
+      <button type="submit">Einloggen</button>
+      <div class="error" id="errorBox">Anmeldung fehlgeschlagen.</div>
+    </form>
   </div>
 
   <script>
-    const $ = (q)=>document.querySelector(q);
-    const form = $('#form');
-    const user = $('#user');
-    const pass = $('#pass');
-    const msg  = $('#msg');
-    const btn  = $('#submitBtn');
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
 
-    // Toggle password visibility
-    $('#togglePass').addEventListener('click', ()=>{
-      const v = pass.getAttribute('type') === 'password' ? 'text' : 'password';
-      pass.setAttribute('type', v);
-    });
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
 
-    function setMsg(text, type){
-      if(!text){ msg.style.display='none'; msg.textContent=''; return; }
-      msg.className = 'msg ' + (type || 'err');
-      msg.textContent = text;
-      msg.style.display = 'block';
-    }
-
-    async function login(e){
-      e?.preventDefault();
-      setMsg('');
-      btn.disabled = true; btn.textContent = 'Bitte warten…';
-
-      try{
-        const res = await fetch('/login', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ user: user.value.trim(), pass: pass.value, remember: $('#remember').checked })
-        });
-
-        const data = await res.json().catch(()=> ({}));
-
-        if(!res.ok){
-          setMsg(data?.error || 'Anmeldung fehlgeschlagen.', 'err');
-          btn.disabled = false; btn.textContent = 'Einloggen';
-          return;
-        }
-
-        setMsg('Erfolgreich angemeldet. Weiterleitung…', 'ok');
-        // kurze Pause für Feedback
-        setTimeout(()=>{ window.location.href = '/'; }, 600);
-      }catch(err){
-        setMsg('Netzwerkfehler: ' + (err?.message || err), 'err');
-        btn.disabled = false; btn.textContent = 'Einloggen';
+      if (res.ok) {
+        window.location.href = "/dashboard.html";
+      } else {
+        document.getElementById("errorBox").style.display = "block";
       }
-    }
-
-    form.addEventListener('submit', login);
-
-    // Komfort: Enter auf Passwortfeld
-    pass.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ login(e); } });
-
-    // Autofokus
-    setTimeout(()=>{ user.focus(); }, 50);
+    });
   </script>
 </body>
 </html>
