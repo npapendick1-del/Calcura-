@@ -279,14 +279,18 @@ function authUid() {
   }
 })();
 
-// Login / Logout
-app.post("/api/auth/login", async (req, res) => {
+// Login / Logout (Klartext-Passwörter)
+app.post("/api/auth/login", (req, res) => {
   const { username, password } = req.body || {};
   const users = authRead("users.json", []);
   const u = users.find((x) => x.username === String(username || ""));
   if (!u) return res.status(401).json({ error: "Unauthorized" });
-  const ok = await bcrypt.compare(String(password || ""), u.passhash);
-  if (!ok) return res.status(401).json({ error: "Unauthorized" });
+
+  // Nur Klartext-Vergleich
+  if (u.pass !== String(password || "")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   req.session.user = { id: u.id, username: u.username, role: u.role };
   res.json({ ok: true, user: req.session.user });
 });
