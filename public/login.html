@@ -1,93 +1,149 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Login – MeisterKI</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anmelden</title>
   <style>
+    /* Reset */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Inter", system-ui, sans-serif;
+    }
+
     body {
-      font-family: system-ui, sans-serif;
-      background: linear-gradient(135deg, #0f172a, #1e293b);
-      color: #fff;
+      height: 100vh;
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 100vh;
-      margin: 0;
+      background: linear-gradient(135deg, #1e1e2f, #2a2a40);
+      color: #fff;
     }
-    .card {
-      background: #1e293b;
-      padding: 2rem;
-      border-radius: 16px;
-      box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+
+    .login-container {
+      background: #2f3147;
+      padding: 2.5rem;
+      border-radius: 20px;
       width: 100%;
-      max-width: 360px;
+      max-width: 380px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+      animation: fadeIn 0.8s ease-in-out;
     }
-    h1 {
-      font-size: 1.4rem;
-      margin-bottom: 1rem;
+
+    .login-container h2 {
       text-align: center;
+      margin-bottom: 1.5rem;
+      font-size: 1.8rem;
+      color: #e4e6eb;
     }
+
+    .form-group {
+      margin-bottom: 1.2rem;
+    }
+
     label {
       display: block;
-      margin-top: 1rem;
+      margin-bottom: 0.4rem;
       font-size: 0.9rem;
+      color: #b0b3c2;
     }
+
     input {
       width: 100%;
-      padding: 10px;
-      margin-top: 0.3rem;
+      padding: 0.8rem;
       border: none;
-      border-radius: 8px;
-      font-size: 1rem;
-    }
-    button {
-      margin-top: 1.5rem;
-      width: 100%;
-      padding: 12px;
-      border: none;
-      border-radius: 8px;
-      background: #3b82f6;
+      border-radius: 12px;
+      outline: none;
+      background: #1f2030;
       color: #fff;
       font-size: 1rem;
+      transition: 0.3s ease;
+    }
+
+    input:focus {
+      background: #27293d;
+      box-shadow: 0 0 0 2px #4e9fff;
+    }
+
+    button {
+      width: 100%;
+      padding: 0.9rem;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #4e9fff, #007bff);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.3s ease;
     }
+
     button:hover {
-      background: #2563eb;
+      background: linear-gradient(135deg, #66adff, #3390ff);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
     }
+
     .error {
-      margin-top: 1rem;
-      padding: 0.8rem;
-      background: rgba(239, 68, 68, 0.15);
-      color: #f87171;
-      border-radius: 8px;
+      background: #ff4d4d;
+      color: #fff;
+      padding: 0.7rem;
+      margin-bottom: 1rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
       display: none;
       text-align: center;
-      font-size: 0.9rem;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .footer {
+      margin-top: 1rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #8a8c9e;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Anmelden</h1>
+  <div class="login-container">
+    <h2>Anmelden</h2>
+    <div id="errorBox" class="error">Anmeldung fehlgeschlagen</div>
     <form id="loginForm">
-      <label>Benutzername
-        <input type="text" id="username" value="admin" required>
-      </label>
-      <label>Passwort
-        <input type="password" id="password" value="Test123!" required>
-      </label>
+      <div class="form-group">
+        <label for="username">Benutzername</label>
+        <input type="text" id="username" name="username" required autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="password">Passwort</label>
+        <input type="password" id="password" name="password" required />
+      </div>
       <button type="submit">Einloggen</button>
-      <div class="error" id="errorBox">Anmeldung fehlgeschlagen.</div>
     </form>
+    <div class="footer">
+      Sicher geschützt mit Sessions ⚡
+    </div>
   </div>
 
   <script>
-    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    const form = document.getElementById("loginForm");
+    const errorBox = document.getElementById("errorBox");
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const username = document.getElementById("username").value;
-      const password = document.getElementById("password").value;
+      const username = form.username.value.trim();
+      const password = form.password.value;
 
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -98,7 +154,7 @@
       if (res.ok) {
         window.location.href = "/dashboard.html";
       } else {
-        document.getElementById("errorBox").style.display = "block";
+        errorBox.style.display = "block";
       }
     });
   </script>
