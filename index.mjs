@@ -279,25 +279,33 @@ function authUid() {
   }
 })();
 
-// Login / Logout (Klartext-Passwörter)
+// Login / Logout (Fallback: fest im Code hinterlegt)
+const HARDCODED_USER = {
+  username: "admin",
+  password: "Test123!",
+  role: "admin",
+};
+
 app.post("/api/auth/login", (req, res) => {
   const { username, password } = req.body || {};
-  const users = authRead("users.json", []);
-  const u = users.find((x) => x.username === String(username || ""));
-  if (!u) return res.status(401).json({ error: "Unauthorized" });
-
-  // Nur Klartext-Vergleich
-  if (u.pass !== String(password || "")) {
-    return res.status(401).json({ error: "Unauthorized" });
+  if (
+    username === HARDCODED_USER.username &&
+    password === HARDCODED_USER.password
+  ) {
+    req.session.user = {
+      id: "static1",
+      username: HARDCODED_USER.username,
+      role: HARDCODED_USER.role,
+    };
+    return res.json({ ok: true, user: req.session.user });
   }
-
-  req.session.user = { id: u.id, username: u.username, role: u.role };
-  res.json({ ok: true, user: req.session.user });
+  return res.status(401).json({ error: "Unauthorized" });
 });
 
 app.post("/api/auth/logout", (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
+
 
 // ---------------------- KI-Assistent ----------------------
 app.post("/api/invoice/parse", async (req, res) => {
