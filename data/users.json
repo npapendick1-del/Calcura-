@@ -2,7 +2,7 @@
   {
     "id": "abc12345",
     "username": "admin",
-    "passhash": "$2b$10$....",
+    "pass": "Test123!",
     "role": "admin",
     "createdAt": 1727182012345
   }
