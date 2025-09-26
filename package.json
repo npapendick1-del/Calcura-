@@ -23,7 +23,8 @@
     "nodemailer": "^6.9.5",
     "pdfkit": "^0.13.0",
     "session-file-store": "^1.5.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
@@ -36,7 +37,9 @@
     "express",
     "pdf",
     "backend",
-    "nodejs"
+    "nodejs",
+    "zod",
+    "auth"
   ],
   "author": "Dein Name",
   "license": "MIT"
