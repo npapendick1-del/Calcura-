@@ -79,6 +79,48 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+// ---------------------- Settings APIs ----------------------
+app.get("/api/settings", (req, res) => {
+  const settings = readJson("settings.json", {
+    language: "de",
+    theme: "light",
+  });
+  res.json(settings);
+});
+
+app.post("/api/settings", (req, res) => {
+  const { language, theme } = req.body || {};
+  const settings = { language, theme };
+  writeJson("settings.json", settings);
+  res.json({ ok: true, settings });
+});
+
+// ---------------------- Kunden APIs ----------------------
+app.get("/api/customers", (req, res) => {
+  const customers = readJson("customers.json", []);
+  res.json(customers);
+});
+
+app.post("/api/customers", (req, res) => {
+  const customers = readJson("customers.json", []);
+  const { name, email, phone, address, note } = req.body || {};
+  if (!name) return res.status(400).json({ error: "Name required" });
+
+  const newCustomer = {
+    id: uid(),
+    name,
+    email,
+    phone,
+    address,
+    note,
+    createdAt: Date.now(),
+  };
+
+  customers.push(newCustomer);
+  writeJson("customers.json", customers);
+  res.json({ ok: true, customer: newCustomer });
+});
+
 // ---------------------- Auth ----------------------
 function authRead(fname, fallback) {
   const p = path.join(DATA_DIR, fname);
