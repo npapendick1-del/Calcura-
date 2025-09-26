@@ -1,10 +1,11 @@
-
-  {
+{
   "name": "meisterki-server",
   "version": "1.0.0",
   "type": "module",
   "private": true,
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node index.mjs"
   },
@@ -22,6 +23,3 @@
     "zod": "^3.23.8"
   }
 }
-
-}
-
