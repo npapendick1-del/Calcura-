@@ -332,7 +332,35 @@
       el.textContent = msg; el.classList.add("show");
       setTimeout(()=>el.classList.remove("show"), 3000);
     }
-    function escapeHTML(s){ return (s||"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m])); }
+        function escapeHTML(s){ 
+      return (s||"").replace(/[&<>"']/g, m=>({ 
+        "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" 
+      }[m])); 
+    }
+
+    // ---------------- Einstellungen: Theme & Sprache ----------------
+    (function settingsEnhancements(){
+      // Light/Dark Mode Toggle
+      const savedTheme = localStorage.getItem("theme") || "light";
+      document.documentElement.dataset.theme = savedTheme;
+
+      function applyTheme(theme){
+        document.documentElement.dataset.theme = theme;
+        localStorage.setItem("theme", theme);
+      }
+
+      // Sprache speichern
+      const savedLang = localStorage.getItem("lang") || "de";
+      document.documentElement.lang = savedLang;
+
+      function applyLang(lang){
+        document.documentElement.lang = lang;
+        localStorage.setItem("lang", lang);
+      }
+
+      // Expose global (optional Buttons auf settings.html ansprechbar machen)
+      window.MeisterSettings = { applyTheme, applyLang };
+    })();
   </script>
 </body>
 </html>
