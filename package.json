@@ -1,24 +1,4 @@
-{
-  "name": "meisterki-server",
-  "version": "0.1.0",
-  "type": "module",
-  "private": true,
-  "engines": {
-    "node": ">=18"
-  },
-  "scripts": {
-    "start": "node index.mjs"
-  },
-  "dependencies": {
-    "body-parser": "^1.20.2",
-    "bcrypt": "^5.1.1",
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "express-session": "^1.17.3",
-    "openai": "^4.57.0",
-    "pdfkit": "^0.13.0",
-    "zod": "^3.23.8"
-  }
+
   {
   "name": "meisterki-server",
   "version": "1.0.0",
