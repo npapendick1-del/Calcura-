@@ -1,16 +1,1 @@
-[
-  {
-    "id": "abc12345",
-    "username": "admin",
-    "passhash": "$2b$10$CwTycUXWue0Thq9StjUM0uJ8pW0UO2nvnbGM1bJ3LZ1rMn7Y1u7tW",
-    "role": "admin",
-    "createdAt": 1727182012345
-  },
-  {
-    "id": "def67890",
-    "username": "user",
-    "passhash": "$2b$10$7qEXK4id3R91E4MpVbqYjO2Z5ZnE6S1aFUkqE2Y6o9rGmZfj7mN7K",
-    "role": "user",
-    "createdAt": 1727182012346
-  }
-]
+
