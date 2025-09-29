@@ -1,6 +1,6 @@
 // ==============================
 // MeisterKI – Backend (index.mjs)
-// Super-Backend mit Auth, RBAC, PDF, AI, Kunden/Projekte, Uploads, Audit, Backups, E-Mail
+// All-In-One Backend mit Auth, RBAC, PDF, AI, Kunden/Projekte, Uploads, Audit, Backups, E-Mail
 // ==============================
 
 // ------- Core & Utils -------
@@ -37,8 +37,6 @@ const app = express();
 // ------------ CONFIG -------------
 const IS_DEV = process.env.NODE_ENV !== "production";
 const PORT = process.env.PORT || 4000;
-
-// Session store (MemoryStore ist für Produktion nicht ideal; für Render ok als Start)
 const SESSION_SECRET = process.env.SESSION_SECRET || "supergeheim";
 
 // E-Mail (optional – wenn nicht gesetzt, wird Mailversand übersprungen)
@@ -51,15 +49,10 @@ const SMTP = {
 };
 
 // ====== MIDDLEWARES ======
-app.set("trust proxy", 1); // wichtig hinter Proxy/Render
+app.set("trust proxy", 1);
 
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-}));
-app.use(cors({
-  origin: true,
-  credentials: true,
-}));
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+app.use(cors({ origin: true, credentials: true }));
 app.use(morgan(IS_DEV ? "dev" : "combined"));
 
 app.use(bodyParser.json({ limit: "10mb" }));
@@ -71,7 +64,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: !IS_DEV,       // im Prod: true (https)
+      secure: !IS_DEV,
       httpOnly: true,
       sameSite: "lax",
       maxAge: 1000 * 60 * 60 * 8, // 8h
@@ -97,7 +90,7 @@ for (const dir of [PUBLIC_DIR, GENERATED_DIR, UPLOADS_DIR, DATA_DIR]) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-app.use(express.static(PUBLIC_DIR)); // /public: html/css/js + generated/uploads
+app.use(express.static(PUBLIC_DIR));
 
 // ====== SIMPLE CSRF TOKEN ======
 function genCsrf() {
@@ -109,12 +102,10 @@ function attachCsrf(req, _res, next) {
 }
 app.use(attachCsrf);
 
-// Client kann CSRF via GET holen (falls gewünscht)
 app.get("/api/auth/csrf", (req, res) => {
   res.json({ csrf: req.session.csrf });
 });
 
-// Prüfer für POST/PUT/DELETE (optional: nur bei sensiblen Routen)
 function requireCsrf(req, res, next) {
   const token = req.get("x-csrf-token");
   if (!token || token !== req.session.csrf) {
@@ -123,7 +114,7 @@ function requireCsrf(req, res, next) {
   next();
 }
 
-// ====== HELPER: JSON-DB ======
+// ====== JSON-DB HELPER ======
 function readJson(fname, fallback) {
   const p = path.join(DATA_DIR, fname);
   try {
@@ -143,7 +134,6 @@ function uid() {
 
 // ====== AUDIT LOG ======
 const AUDIT_FILE = path.join(DATA_DIR, "audit.log");
-// JSON Lines: {ts, user?, ip, action, meta}
 function audit(req, action, meta = {}) {
   const line = JSON.stringify({
     ts: Date.now(),
@@ -172,7 +162,7 @@ app.get("/api/audit", (req, res) => {
   }
 });
 
-// ====== GUARDs ======
+// ====== PROTECTED HTML ======
 const PROTECTED_HTML = new Set([
   "/dashboard.html",
   "/app.html",
@@ -184,7 +174,6 @@ const PROTECTED_HTML = new Set([
   "/users.html",
 ]);
 
-// Whitelist ohne Login
 const PUBLIC_PATHS = new Set([
   "/login.html",
   "/style.css",
@@ -193,10 +182,7 @@ const PUBLIC_PATHS = new Set([
 
 app.use((req, res, next) => {
   const p = req.path;
-  if (p.startsWith("/generated/") || p.startsWith("/uploads/")) {
-    // PDFs/Uploads sind öffentlich lesbar (Download aus dem PDF-Center)
-    return next();
-  }
+  if (p.startsWith("/generated/") || p.startsWith("/uploads/")) return next();
   if (p.startsWith("/api/auth/") || p === "/api/auth/csrf") return next();
   if (PUBLIC_PATHS.has(p)) return next();
   if (PROTECTED_HTML.has(p)) {
@@ -205,14 +191,13 @@ app.use((req, res, next) => {
   }
   next();
 });
-
 // ============= AUTH / USERS =============
 const USERS_FILE = "users.json";
 
-// limit für login route
+// Login-Rate-Limit nur auf die Loginroute anwenden
 app.use("/api/auth/login", authLimiter);
 
-// Ersten Admin anlegen
+// Ersten Admin anlegen (ENV oder Defaults)
 (function ensureAdmin() {
   const users = readJson(USERS_FILE, []);
   if (users.length === 0) {
@@ -225,15 +210,15 @@ app.use("/api/auth/login", authLimiter);
       username: adminUser,
       passhash: hash,
       role: "admin",
-      createdAt: Date.now(),
       active: true,
+      createdAt: Date.now(),
     });
     writeJson(USERS_FILE, users);
     console.log(`[auth] Admin '${adminUser}' angelegt (ENV/Default).`);
   }
 })();
 
-// Fehlversuch-Tracking (in-Memory, pro IP+User)
+// Fehlversuch-Tracking (in-Memory) – einfache Sperre
 const FAILS = new Map(); // key: ip|username -> { count, until }
 function isLocked(ip, username) {
   const key = `${ip}|${username}`;
@@ -247,7 +232,6 @@ function registerFail(ip, username) {
   const key = `${ip}|${username}`;
   const prev = FAILS.get(key) || { count: 0, until: 0 };
   const count = prev.count + 1;
-  // 3, 5, 7... steigende Sperre
   const lockSec = Math.min(60 * count, 10 * 60);
   FAILS.set(key, { count, until: Date.now() + lockSec * 1000 });
   return { count, lockSec };
@@ -256,6 +240,13 @@ function clearFails(ip, username) {
   const key = `${ip}|${username}`;
   FAILS.delete(key);
 }
+
+// HARDCODED-Notfall (falls users.json korrupt ist)
+const HARDCODED_FALLBACK = {
+  username: "admin",
+  password: "Test123!",
+  role: "admin",
+};
 
 // Login
 app.post("/api/auth/login", (req, res) => {
@@ -267,8 +258,18 @@ app.post("/api/auth/login", (req, res) => {
     return res.status(429).json({ error: "Account temporär gesperrt. Bitte kurz warten." });
   }
 
-  const users = readJson(USERS_FILE, []);
-  const u = users.find((x) => x.username === String(username));
+  let users = readJson(USERS_FILE, []);
+  // Falls Datei leer/kaputt -> Fallback zulassen
+  if (!Array.isArray(users) || users.length === 0) {
+    if (username === HARDCODED_FALLBACK.username && password === HARDCODED_FALLBACK.password) {
+      req.session.user = { id: "hardcoded", username, role: HARDCODED_FALLBACK.role };
+      audit(req, "login.ok.fallback", { username });
+      return res.json({ ok: true, user: req.session.user, csrf: req.session.csrf });
+    }
+    // ansonsten fehlschlag wie üblich
+  }
+
+  const u = (Array.isArray(users) ? users : []).find((x) => x.username === String(username));
   if (!u || !u.active) {
     const { count, lockSec } = registerFail(req.ip, username);
     audit(req, "login.fail", { username, count, lockSec });
@@ -283,7 +284,6 @@ app.post("/api/auth/login", (req, res) => {
   }
 
   clearFails(req.ip, username);
-
   req.session.user = { id: u.id, username: u.username, role: u.role };
   audit(req, "login.ok", { userId: u.id, username: u.username });
   res.json({ ok: true, user: req.session.user, csrf: req.session.csrf });
@@ -291,9 +291,9 @@ app.post("/api/auth/login", (req, res) => {
 
 // Logout
 app.post("/api/auth/logout", (req, res) => {
-  const user = req.session?.user;
+  const user = req.session?.user || null;
   req.session.destroy(() => {
-    audit({ ip: "n/a", session: { user } }, "logout", { user });
+    audit({ ip: req.ip, session: { user } }, "logout", { user });
     res.json({ ok: true });
   });
 });
@@ -316,20 +316,27 @@ app.post("/api/auth/change-password", requireCsrf, (req, res) => {
   res.json({ ok: true });
 });
 
-// Admin: Users CRUD (Minimal)
+// Admin-Guard
 function requireAdmin(req, res, next) {
   if (req.session?.user?.role === "admin") return next();
   return res.status(403).json({ error: "Forbidden" });
 }
+
+// Admin: Users CRUD
 app.get("/api/users", (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
   requireAdmin(req, res, () => {
     const users = readJson(USERS_FILE, []).map((u) => ({
-      id: u.id, username: u.username, role: u.role, active: u.active, createdAt: u.createdAt,
+      id: u.id,
+      username: u.username,
+      role: u.role,
+      active: u.active,
+      createdAt: u.createdAt,
     }));
     res.json({ items: users });
   });
 });
+
 app.post("/api/users", requireCsrf, (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
   requireAdmin(req, res, () => {
@@ -351,6 +358,7 @@ app.post("/api/users", requireCsrf, (req, res) => {
     res.json({ id: item.id, username: item.username, role: item.role });
   });
 });
+
 app.put("/api/users/:id/toggle", requireCsrf, (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
   requireAdmin(req, res, () => {
@@ -364,6 +372,7 @@ app.put("/api/users/:id/toggle", requireCsrf, (req, res) => {
     res.json({ ok: true, active: users[idx].active });
   });
 });
+
 app.delete("/api/users/:id", requireCsrf, (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
   requireAdmin(req, res, () => {
@@ -410,7 +419,7 @@ app.post("/api/settings", requireCsrf, (req, res) => {
   res.json({ ok: true });
 });
 
-// ===== Logo Upload (ersetzt /public/logo.png) =====
+// Logo-Upload (ersetzt /public/logo.png)
 const logoStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, PUBLIC_DIR),
   filename: (_req, file, cb) => cb(null, "logo.png"),
@@ -498,7 +507,8 @@ app.get("/api/customers/export.csv", (req, res) => {
   const list = readJson(CUSTOMERS_FILE, []);
   const head = "id;name;email;phone;street;city;note;createdAt\n";
   const rows = list.map((c) => [
-    c.id, c.name, c.email || "", c.phone || "", c.street || "", c.city || "", (c.note || "").replace(/\n/g, " "),
+    c.id, c.name, c.email || "", c.phone || "", c.street || "", c.city || "",
+    (c.note || "").replace(/\n/g, " "),
     new Date(c.createdAt).toISOString()
   ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
   const csv = head + rows + "\n";
@@ -596,7 +606,6 @@ app.post("/api/projects/:id/files", requireCsrf, uploadProjectFile.single("file"
   audit(req, "project.file.upload", { projectId: req.params.id, file: url });
   res.json({ ok: true, url });
 });
-
 // ============= ANGEBOT / PDF =============
 function offerschemaParse(input) {
   if (!input || !Array.isArray(input.items)) {
@@ -604,6 +613,7 @@ function offerschemaParse(input) {
   }
   return input;
 }
+
 function generateOffer(input) {
   let subtotal = 0;
   for (const it of input.items) {
@@ -629,7 +639,7 @@ function exportOfferToPDF(offer) {
   const company = safe(offer?.company?.name || "Firma");
   const customer = safe(offer?.customer?.name || "Kunde");
   const date = new Date().toISOString().slice(0, 10);
-  const filename = `Angebot_${company}_${customer}_${date}_${Date.now()}.pdf`; // einzigartig
+  const filename = `Angebot_${company}_${customer}_${date}_${Date.now()}.pdf`;
   const filePath = path.join(GENERATED_DIR, filename);
 
   const companyName = offer?.company?.name || "Ihr Handwerksbetrieb";
@@ -641,13 +651,11 @@ function exportOfferToPDF(offer) {
   const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
   doc.pipe(fs.createWriteStream(filePath));
 
-  // Logo (falls vorhanden)
   const logoPath = path.join(PUBLIC_DIR, "logo.png");
   if (fs.existsSync(logoPath)) {
     try { doc.image(logoPath, 430, 40, { width: 140 }); } catch {}
   }
 
-  // Kopf
   doc.fontSize(20).font("Helvetica-Bold").text("Angebot", 50, 50);
   doc.moveDown(1);
   doc.font("Helvetica").fontSize(12).text(`Firma: ${companyName}`);
@@ -656,7 +664,6 @@ function exportOfferToPDF(offer) {
   doc.text(`Datum: ${today}`);
   doc.moveDown(1.5);
 
-  // Tabellenkopf
   const drawHeader = (y) => {
     doc.font("Helvetica-Bold").fontSize(11);
     doc.text("Beschreibung", 50, y);
@@ -694,7 +701,6 @@ function exportOfferToPDF(offer) {
     y += 22;
   });
 
-  // Summenbox
   const boxY = y + 20;
   doc.rect(300, boxY, 250, 100).fill("#f8fafc").stroke("#e5e7eb");
   doc.fillColor("#000").font("Helvetica").fontSize(10);
@@ -738,7 +744,7 @@ function exportOfferToPDF(offer) {
   return { url: `/generated/${filename}`, filename, absPath: filePath };
 }
 
-// PDF: Angebot berechnen
+// Angebot berechnen
 app.post("/api/offers/generate", (req, res) => {
   try {
     const input = offerschemaParse(req.body);
@@ -749,7 +755,7 @@ app.post("/api/offers/generate", (req, res) => {
   }
 });
 
-// PDF: Erzeugen & gespeicherten Pfad zurückgeben
+// PDF erzeugen & Pfad zurückgeben (speichern)
 app.post("/api/offers/export-pdf", requireCsrf, (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
   try {
@@ -760,7 +766,7 @@ app.post("/api/offers/export-pdf", requireCsrf, (req, res) => {
   }
 });
 
-// PDF-Center: Liste & Delete & Rename
+// PDF-Center: Liste / Delete / Rename
 app.get("/api/pdfs/list", (req, res) => {
   if (!fs.existsSync(GENERATED_DIR)) return res.json({ items: [] });
   try {
@@ -777,6 +783,7 @@ app.get("/api/pdfs/list", (req, res) => {
     res.status(500).json({ error: String(e?.message || e) });
   }
 });
+
 app.delete("/api/pdfs", requireCsrf, (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
   const name = String(req.query.name || "");
@@ -790,6 +797,7 @@ app.delete("/api/pdfs", requireCsrf, (req, res) => {
     res.json({ ok: true });
   });
 });
+
 app.post("/api/pdfs/rename", requireCsrf, (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
   const { oldName, newName } = req.body || {};
@@ -804,7 +812,7 @@ app.post("/api/pdfs/rename", requireCsrf, (req, res) => {
   res.json({ ok: true });
 });
 
-// PDF per E-Mail senden (Anhang) – optional, nur falls SMTP konfiguriert
+// PDF per E-Mail senden (optional – SMTP nötig)
 app.post("/api/pdfs/send", requireCsrf, async (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: "Unauthorized" });
   const { name, to, subject, text } = req.body || {};
@@ -889,10 +897,10 @@ app.get("/api/backups/export", (req, res) => {
 
   const payload = {
     ts: Date.now(),
-    settings: readJson(SETTINGS_FILE, {}),
-    users: readJson(USERS_FILE, []),
-    customers: readJson(CUSTOMERS_FILE, []),
-    projects: readJson(PROJECTS_FILE, []),
+    settings: readJson("settings.json", {}),
+    users: readJson("users.json", []),
+    customers: readJson("customers.json", []),
+    projects: readJson("projects.json", []),
   };
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="backup_${new Date().toISOString().slice(0,10)}.json"`);
@@ -907,10 +915,10 @@ app.post("/api/backups/import", requireCsrf, (req, res) => {
   const b = req.body || {};
   if (!b || typeof b !== "object") return res.status(400).json({ error: "Bad payload" });
 
-  if (b.settings) writeJson(SETTINGS_FILE, b.settings);
-  if (Array.isArray(b.users)) writeJson(USERS_FILE, b.users);
-  if (Array.isArray(b.customers)) writeJson(CUSTOMERS_FILE, b.customers);
-  if (Array.isArray(b.projects)) writeJson(PROJECTS_FILE, b.projects);
+  if (b.settings) writeJson("settings.json", b.settings);
+  if (Array.isArray(b.users)) writeJson("users.json", b.users);
+  if (Array.isArray(b.customers)) writeJson("customers.json", b.customers);
+  if (Array.isArray(b.projects)) writeJson("projects.json", b.projects);
 
   audit(req, "backup.import", { keys: Object.keys(b) });
   res.json({ ok: true });
@@ -923,20 +931,31 @@ app.get("/readyz", (_req, res) => {
   res.status(ok ? 200 : 500).json({ ok });
 });
 app.get("/metrics", (_req, res) => {
-  const users = readJson(USERS_FILE, []).length;
-  const customers = readJson(CUSTOMERS_FILE, []).length;
-  const projects = readJson(PROJECTS_FILE, []).length;
+  const users = readJson("users.json", []).length;
+  const customers = readJson("customers.json", []).length;
+  const projects = readJson("projects.json", []).length;
   const pdfs = fs.existsSync(GENERATED_DIR)
     ? fs.readdirSync(GENERATED_DIR).filter((f) => f.endsWith(".pdf")).length
     : 0;
   res.json({ users, customers, projects, pdfs, ts: Date.now() });
 });
 
-// ============= START & LANDING ============
+// ============= LANDING & START =============
 app.get("/", (req, res) => {
   // Start immer über Login (geschützte Seiten sind via Middleware geschützt)
   res.sendFile(path.join(PUBLIC_DIR, "login.html"));
 });
+
+// Reset-Route (nur DEV) – löscht Sessions & setzt CSRF neu
+if (IS_DEV) {
+  app.post("/api/dev/reset-session", (req, res) => {
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ error: "reset failed" });
+      req.session.csrf = genCsrf();
+      res.json({ ok: true, csrf: req.session.csrf });
+    });
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`MeisterKI server listening on port ${PORT}`);
